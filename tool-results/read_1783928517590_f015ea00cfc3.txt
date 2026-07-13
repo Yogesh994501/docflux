@@ -1,0 +1,718 @@
+     1→     1→# PLAN.md — AutoFinDocs: Intelligent Document Finance Platform
+     2→     2→
+     3→     3→## Implementation Plan
+     4→     4→
+     5→     5→---
+     6→     6→
+     7→     7→## 1. Project Overview
+     8→     8→
+     9→     9→**AutoFinDocs** is a production-grade, modular finance automation platform that:
+    10→    10→
+    11→    11→- Ingests documents (PDFs, images, emails) and extracts structured financial data using LLM
+    12→    12→- **Android companion app** handles scanning + on-device OCR (Google ML Kit); server receives pre-extracted text
+    13→    13→- Web/email uploads use lightweight Tesseract as OCR fallback (no heavy OCR on server)
+    14→    14→- Classifies documents (GST Invoice, Receipt, E-Bill, Credit/Debit Note, PO, Challan)
+    15→    15→- Automates approval workflows using LangGraph stateful multi-step pipelines
+    16→    16→- Provides a full CRM for vendors and customers
+    17→    17→- Performs 3-way matching (Invoice ↔ PO ↔ Delivery Challan)
+    18→    18→- Offers GSTR reconciliation and tax compliance tools
+    19→    19→- Delivers an advanced analytics dashboard with spend trends and automation ROI
+    20→    20→- Includes an AI Copilot for natural language queries
+    21→    21→- Is device-aware: full desktop experience, limited mobile with APK recommendation
+    22→    22→
+    23→    23→---
+    24→    24→
+    25→    25→## 2. Phased Implementation Roadmap
+    26→    26→
+    27→    27→### Phase 1 — Foundation (Days 1–3)
+    28→    28→
+    29→    29→**Goal**: Project scaffolding, database models, auth, basic API, and a working Streamlit shell.
+    30→    30→
+    31→    31→| # | Task | Files | Details |
+    32→    32→|---|---|---|---|
+    33→    33→| 1.1 | Project setup | `pyproject.toml`, `requirements/`, `.env.example`, `.gitignore` | Pin all dependency versions. Create virtual env. |
+    34→    34→| 1.2 | Config & Database | `backend/config.py`, `backend/database.py` | Pydantic Settings, async SQLAlchemy engine + Supabase pooler connection (port 6543), session factory. |
+    35→    35→| 1.3 | Base model mixin | `backend/models/base.py` | `id` (UUID), `created_at`, `updated_at`, `is_deleted`, `created_by`, `updated_by`. |
+    36→    36→| 1.4 | User model + Auth | `backend/models/user.py`, `backend/services/auth_service.py`, `backend/utils/security.py` | User with roles (admin, manager, accountant, viewer). JWT creation + verification. bcrypt hashing. |
+    37→    37→| 1.5 | Auth API | `backend/api/v1/auth.py` | POST `/register`, POST `/login`, GET `/me`, POST `/refresh`. |
+    38→    38→| 1.6 | FastAPI app factory | `backend/main.py` | CORS, exception handlers, router includes, lifespan events. |
+    39→    39→| 1.7 | Alembic setup | `alembic/` | Initial migration with User table. |
+    40→    40→| 1.8 | Streamlit shell | `frontend/app.py`, `frontend/auth.py`, `frontend/api_client.py` | Login page, session management, sidebar navigation, custom CSS injection. |
+    41→    41→| 1.9 | Device detection | `frontend/device_detect.py`, `frontend/components/mobile_banner.py` | JS injection for screen size, user-agent parsing, mobile redirect banner. |
+    42→    42→
+    43→    43→**Deliverable**: Running backend + frontend with working login/signup and a skeleton multipage dashboard.
+    44→    44→
+    45→    45→---
+    46→    46→
+    47→    47→### Phase 2 — Document Processing Core (Days 4–7)
+    48→    48→
+    49→    49→**Goal**: Upload (from Android or web), OCR (skip or Tesseract), classify, extract, and store documents.
+    50→    50→
+    51→    51→| # | Task | Files | Details |
+    52→    52→|---|---|---|---|
+    53→    53→| 2.1 | Document + Invoice models | `backend/models/document.py`, `backend/models/invoice.py`, `backend/models/line_item.py` | Document adds `source` field (android/web/email), `ocr_text`, `ocr_confidence`. Invoice (all GST fields, totals). LineItem (description, HSN, qty, rate, tax, amount). |
+    54→    54→| 2.2 | Storage service | `backend/services/storage_service.py` | Abstract interface: `save_file()`, `get_file()`, `delete_file()`. Implementations: LocalStorage, SupabaseStorage (using supabase-py SDK, 1 GB free). |
+    55→    55→| 2.3 | OCR service (lightweight) | `backend/services/ocr_service.py` | **Dual-mode**: If `source=="android"` and `ocr_text` provided → skip OCR entirely. Otherwise → Tesseract (pytesseract) fallback for web/email uploads (~50 MB RAM). PDF → image via pdf2image, then Tesseract. NO PaddleOCR. |
+    56→    56→| 2.4 | Classification service | `backend/services/classification_service.py` | Two-stage: (1) Keyword-based fast classifier, (2) LLM fallback for ambiguous docs. Categories: GST_INVOICE, RECEIPT, EBILL, CREDIT_NOTE, DEBIT_NOTE, PURCHASE_ORDER, DELIVERY_CHALLAN, UNKNOWN. |
+    57→    57→| 2.5 | Extraction service | `backend/services/extraction_service.py` | LangChain structured output. Extract: vendor_name, GSTIN, invoice_number, date, due_date, line_items[], taxes (CGST/SGST/IGST), total, bank_details. Different prompts per document type. |
+    58→    58→| 2.6 | LangGraph document pipeline | `backend/workflows/document_pipeline.py`, `backend/workflows/nodes/` | Graph: Upload → **Conditional OCR** (skip if Android) → Classify → Extract → Validate → DuplicateCheck → FraudCheck → Route → Store. Conditional edges based on source, classification & confidence. |
+    59→    59→| 2.7 | Celery task for pipeline | `backend/tasks/document_tasks.py`, `backend/tasks/celery_app.py` | `process_document.delay(document_id)` — runs the full LangGraph pipeline in background. |
+    60→    60→| 2.8 | Document API | `backend/api/v1/documents.py`, `backend/api/v1/invoices.py` | POST `/upload` accepts multipart file + optional `ocr_text`, `ocr_confidence`, `source` (android/web), `device_info` fields. GET `/documents`, GET `/documents/{id}`, GET `/invoices`. |
+    61→    61→| 2.9 | Streamlit: Document Upload | `frontend/pages/02_📄_Documents.py` | Drag-and-drop upload, processing status tracker, document detail view with extracted data, OCR text preview. Source badge (Android/Web/Email). |
+    62→    62→
+    63→    63→**Deliverable**: End-to-end: Android scan → OCR on phone → Send text + image → Classify → Extract fields → View in dashboard. Web upload also works with Tesseract fallback.
+    64→    64→
+    65→    65→---
+    66→    66→
+    67→    67→### Phase 3 — Duplicate & Fraud Detection + Approval Workflow (Days 8–10)
+    68→    68→
+    69→    69→| # | Task | Files | Details |
+    70→    70→|---|---|---|---|
+    71→    71→| 3.1 | Duplicate detection service | `backend/services/duplicate_service.py` | Hash-based (file hash) + semantic (invoice_number + vendor + amount + date). Configurable similarity threshold. |
+    72→    72→| 3.2 | Fraud/Anomaly detection | `backend/services/fraud_service.py` | Rule-based checks: amount outliers (z-score), mismatched GSTIN format, future dates, round-number invoices, velocity checks (too many invoices from same vendor in short time). LLM-assisted anomaly scoring. |
+    73→    73→| 3.3 | Approval model | `backend/models/approval.py` | ApprovalRequest (document_id, status, current_step, assigned_to, approved_by, comments). ApprovalRule (condition_field, operator, threshold, approver_role, step_order). |
+    74→    74→| 3.4 | LangGraph approval workflow | `backend/workflows/approval_workflow.py` | States: PENDING → REVIEW → APPROVED / REJECTED / ESCALATED. Conditional routing based on amount thresholds and fraud scores. Multi-step with configurable hierarchy. |
+    75→    75→| 3.5 | Approval API | `backend/api/v1/` (extend) | POST `/approve/{id}`, POST `/reject/{id}`, GET `/pending-approvals`. |
+    76→    76→| 3.6 | Streamlit: Approval Queue | `frontend/components/approval_card.py`, page integration | Approval queue with cards, one-click approve/reject, comment fields, escalation. |
+    77→    77→
+    78→    78→**Deliverable**: Documents auto-routed through approval chains. Duplicates flagged. Anomalies scored and highlighted.
+    79→    79→
+    80→    80→---
+    81→    81→
+    82→    82→### Phase 4 — CRM + Vendor/Customer Management (Days 11–13)
+    83→    83→
+    84→    84→| # | Task | Files | Details |
+    85→    85→|---|---|---|---|
+    86→    86→| 4.1 | Vendor & Customer models | `backend/models/vendor.py`, `backend/models/customer.py`, `backend/models/crm.py` | Vendor (name, GSTIN, PAN, address, bank_details, payment_terms, performance_score). Customer (similar). CRM: ContactHistory, Tags, Notes. |
+    87→    87→| 4.2 | CRM service | `backend/services/crm_service.py` | CRUD + contact history tracking, tag management, notes, vendor performance scoring (on-time delivery %, invoice accuracy, dispute rate). |
+    88→    88→| 4.3 | CRM API | `backend/api/v1/vendors.py`, `backend/api/v1/customers.py`, `backend/api/v1/crm.py` | Full CRUD, search, filter, bulk update, tag operations. |
+    89→    89→| 4.4 | Streamlit: CRM pages | `frontend/pages/04_🏢_Vendors.py`, `frontend/pages/05_👥_Customers.py`, `frontend/pages/11_👤_CRM.py` | Vendor/Customer list with search + filters, detail view with contact history timeline, performance scorecard, tag management. |
+    90→    90→
+    91→    91→**Deliverable**: Full CRM with vendor scoring, contact history, and relationship management.
+    92→    92→
+    93→    93→---
+    94→    94→
+    95→    95→### Phase 5 — Purchase Orders + 3-Way Matching (Days 14–16)
+    96→    96→
+    97→    97→| # | Task | Files | Details |
+    98→    98→|---|---|---|---|
+    99→    99→| 5.1 | PO & Challan models | `backend/models/purchase_order.py`, `backend/models/delivery_challan.py`, `backend/models/matching.py` | PO (po_number, vendor, items, total, status). Challan (challan_number, po_ref, items_received). MatchResult (invoice_id, po_id, challan_id, match_status, discrepancies). |
+   100→   100→| 5.2 | 3-way matching service | `backend/services/matching_service.py` | Match logic: Invoice.items ↔ PO.items (qty, rate, description) ↔ Challan.items_received (qty). Tolerance-based matching (configurable % threshold). Discrepancy report generation. |
+   101→   101→| 5.3 | LangGraph matching workflow | `backend/workflows/matching_workflow.py` | Graph: Fetch PO → Fetch Challan → Compare Line Items → Compute Discrepancies → Auto-match or Flag → Generate Report. |
+   102→   102→| 5.4 | Matching API | `backend/api/v1/matching.py`, `backend/api/v1/purchase_orders.py` | POST `/match/{invoice_id}`, GET `/match-results`, GET `/purchase-orders`. |
+   103→   103→| 5.5 | Streamlit: Matching page | `frontend/pages/07_🔗_Matching.py` | Side-by-side comparison view (Invoice vs PO vs Challan), color-coded discrepancies, one-click match/dispute. |
+   104→   104→
+   105→   105→**Deliverable**: Automated 3-way matching with visual discrepancy reports.
+   106→   106→
+   107→   107→---
+   108→   108→
+   109→   109→### Phase 6 — GST Compliance & Tax (Days 17–19)
+   110→   110→
+   111→   111→| # | Task | Files | Details |
+   112→   112→|---|---|---|---|
+   113→   113→| 6.1 | GST models | `backend/models/gst.py` | GSTReturn (return_type GSTR1/GSTR2B/GSTR3B, period, data_json). GSTReconciliation (invoice_id, portal_entry_id, match_status, discrepancy_type). |
+   114→   114→| 6.2 | GST service | `backend/services/gst_service.py` | GSTR-1 generation from sales invoices. GSTR-2B reconciliation (upload portal data → match against booked invoices). ITC mismatch detection. HSN summary generation. |
+   115→   115→| 6.3 | GST API | `backend/api/v1/gst.py` | POST `/gst/reconcile`, GET `/gst/gstr1-summary`, GET `/gst/itc-mismatches`, POST `/gst/upload-portal-data`. |
+   116→   116→| 6.4 | Streamlit: GST page | `frontend/pages/08_💰_GST_Compliance.py` | Period selector, reconciliation results table, ITC mismatch highlights, GSTR summary cards, export for filing. |
+   117→   117→
+   118→   118→**Deliverable**: GSTR-1 generation, GSTR-2B reconciliation, ITC mismatch detection.
+   119→   119→
+   120→   120→---
+   121→   121→
+   122→   122→### Phase 7 — Import/Export + Master Data + Bulk Ops (Days 20–22)
+   123→   123→
+   124→   124→| # | Task | Files | Details |
+   125→   125→|---|---|---|---|
+   126→   126→| 7.1 | Import/Export service | `backend/services/import_export_service.py` | Excel/CSV import with column mapping UI. Export with configurable columns, filters, formatting. Support: invoices, vendors, customers, CRM data. Use openpyxl + pandas. |
+   127→   127→| 7.2 | Master data models | `backend/models/master_data.py` | GLCode (code, description, category). ApprovalHierarchy (role, min_amount, max_amount, step). CustomRule (name, condition_json, action_json). TaxRate, CostCenter, Department. |
+   128→   128→| 7.3 | Master data API | `backend/api/v1/master_data.py`, `backend/api/v1/bulk_ops.py`, `backend/api/v1/import_export.py` | CRUD for GL codes, approval hierarchies, custom rules. Bulk update/delete. Import/export endpoints. |
+   129→   129→| 7.4 | Streamlit: Settings & Master Data | `frontend/pages/12_⚙️_Settings.py` | GL code management table, approval hierarchy builder, custom rule editor, import/export UI with preview. |
+   130→   130→
+   131→   131→**Deliverable**: Full master data management, bulk operations, and Excel/CSV import-export.
+   132→   132→
+   133→   133→---
+   134→   134→
+   135→   135→### Phase 8 — Analytics + AI Copilot (Days 23–26)
+   136→   136→
+   137→   137→| # | Task | Files | Details |
+   138→   138→|---|---|---|---|
+   139→   139→| 8.1 | Analytics service | `backend/services/analytics_service.py` | Spend trends (monthly/quarterly/yearly). Vendor analysis (top vendors, spending distribution). Automation ROI (time saved, error reduction). Document processing metrics. Aging analysis. |
+   140→   140→| 8.2 | Analytics API | `backend/api/v1/analytics.py` | GET `/analytics/spend-trends`, `/vendor-analysis`, `/automation-roi`, `/processing-metrics`. Date range + dimension filters. |
+   141→   141→| 8.3 | Streamlit: Analytics Dashboard | `frontend/pages/09_📈_Analytics.py`, `frontend/components/charts.py` | Plotly charts: line (trends), bar (vendor spend), pie (category distribution), funnel (processing stages), KPI metric cards. Date range selector. |
+   142→   142→| 8.4 | AI Copilot service | `backend/services/copilot_service.py` | Natural language → SQL/API query translation. LangChain agent with tools: query_invoices, query_vendors, get_analytics, explain_document. Conversation memory per user. |
+   143→   143→| 8.5 | Copilot API | `backend/api/v1/copilot.py` | POST `/copilot/query` (text → structured response + data). GET `/copilot/history`. |
+   144→   144→| 8.6 | Streamlit: AI Copilot | `frontend/pages/10_🤖_AI_Copilot.py` | Chat interface, auto-generated charts from queries, suggested questions, conversation history. |
+   145→   145→
+   146→   146→**Deliverable**: Full analytics dashboard with interactive charts and a natural language AI copilot.
+   147→   147→
+   148→   148→---
+   149→   149→
+   150→   150→### Phase 9 — Audit Trail + User Management + Email Ingestion (Days 27–29)
+   151→   151→
+   152→   152→| # | Task | Files | Details |
+   153→   153→|---|---|---|---|
+   154→   154→| 9.1 | Audit model & service | `backend/models/audit.py`, `backend/services/audit_service.py` | AuditLog (entity_type, entity_id, action, old_value_json, new_value_json, user_id, timestamp, ip_address). Auto-capture on all model changes via SQLAlchemy event listeners. |
+   155→   155→| 9.2 | User management API | `backend/api/v1/users.py` | CRUD users, role assignment, activate/deactivate, password reset, activity log. |
+   156→   156→| 9.3 | Email ingestion | `backend/services/email_service.py`, `backend/tasks/email_tasks.py` | IMAP polling (configurable interval). Extract attachments (PDF/image). Auto-create document records. Celery periodic task. |
+   157→   157→| 9.4 | Streamlit: Audit + Users | `frontend/pages/13_📋_Audit_Trail.py`, `frontend/pages/14_👥_User_Management.py` | Searchable audit log with entity links. User management table with role dropdown. |
+   158→   158→| 9.5 | Reports service | `backend/services/`, `backend/api/v1/reports.py` | Configurable report builder: aging report, vendor statement, tax summary, processing summary. PDF export via reportlab. |
+   159→   159→
+   160→   160→**Deliverable**: Complete audit trail, user management, email ingestion, and report generation.
+   161→   161→
+   162→   162→---
+   163→   163→
+   164→   164→### Phase 10 — Free-Tier Deployment & Polish (Days 30–33)
+   165→   165→
+   166→   166→| # | Task | Files | Details |
+   167→   167→|---|---|---|---|
+   168→   168→| 10.1 | Supabase setup | Supabase dashboard + `.env` | Create project, configure connection pooling (port 6543), create storage bucket `documents`, set RLS policies. |
+   169→   169→| 10.2 | Upstash Redis setup | Upstash console + `.env` | Create free Redis database, get `rediss://` connection string for Celery broker. |
+   170→   170→| 10.3 | Render deployment | `render.yaml`, `Procfile`, `requirements/` | Deploy FastAPI as Render Web Service (free tier). Connect GitHub repo for auto-deploy. Set env vars. Add UptimeRobot ping to prevent spin-down. |
+   171→   171→| 10.4 | Streamlit Cloud deployment | `frontend/`, `.streamlit/config.toml` | Deploy Streamlit app on Streamlit Community Cloud (free). Connect GitHub repo. Set secrets via Streamlit Cloud dashboard. |
+   172→   172→| 10.5 | Frontend polish | `frontend/static/styles/` | Professional finance theme: dark sidebar, clean data tables, consistent color palette, loading states, toast notifications, empty states. |
+   173→   173→| 10.6 | Dashboard homepage | `frontend/pages/01_📊_Dashboard.py` | KPI cards (total invoices, pending approvals, processing rate, automation savings). Recent activity feed. Quick actions. Status charts. |
+   174→   174→| 10.7 | Error handling & logging | Backend-wide | Structured logging (structlog). Global exception handler. Request ID tracing. Rate limiting. |
+   175→   175→| 10.8 | Security hardening | Backend-wide | Input sanitization. SQL injection protection (parameterized queries via ORM). CORS tightening. Rate limiting. File upload validation (max 50 MB for Supabase). |
+   176→   176→| 10.9 | Documentation | `README.md`, API docs | FastAPI auto-docs (Swagger + ReDoc). README with setup instructions, architecture diagram, free-tier deployment guide. |
+   177→   177→
+   178→   178→**Deliverable**: Production-ready, deployed entirely on free-tier services (Supabase + Render + Streamlit Cloud + Upstash).
+   179→   179→
+   180→   180→### Free-Tier Deployment Architecture
+   181→   181→
+   182→   182→```
+   183→   183→┌──────────────────────────────────────────────────────────────────────┐
+   184→   184→│                     DEPLOYMENT MAP (All Free Tier)                   │
+   185→   185→├──────────────────────────────────────────────────────────────────────┤
+   186→   186→│                                                                      │
+   187→   187→│  ┌─────────────────────┐     ┌──────────────────────────────┐        │
+   188→   188→│  │ Streamlit Community │     │   Render Web Service (Free)  │        │
+   189→   189→│  │ Cloud (Frontend)    │────▶│   FastAPI Backend             │        │
+   190→   190→│  │                     │     │   + Celery in-process worker  │        │
+   191→   191→│  │ • 1 GB RAM          │     │   • 750 hrs/mo               │        │
+   192→   192→│  │ • Auto-deploy       │     │   • Auto-deploy from GitHub   │        │
+   193→   193→│  │ • Custom domain OK  │     │   • Spins down after 15 min   │        │
+   194→   194→│  └─────────────────────┘     └──────────┬───────────────────┘        │
+   195→   195→│                                         │                            │
+   196→   196→│                    ┌────────────────────┼────────────────┐           │
+   197→   197→│                    │                    │                │           │
+   198→   198→│              ┌─────▼──────┐    ┌───────▼──────┐  ┌──────▼───────┐   │
+   199→   199→│              │ Supabase   │    │ Supabase     │  │ Upstash      │   │
+   200→   200→│              │ PostgreSQL │    │ Storage      │  │ Redis        │   │
+   201→   201→│              │            │    │              │  │              │   │
+   202→   202→│              │ • 500 MB   │    │ • 1 GB       │  │ • 10K cmd/d  │   │
+   203→   203→│              │ • Pooler   │    │ • 50 MB/file │  │ • 256 MB     │   │
+   204→   204→│              │ • Port 6543│    │ • CDN        │  │ • TLS        │   │
+   205→   205→│              └────────────┘    └──────────────┘  └──────────────┘   │
+   206→   206→│                                                                      │
+   207→   207→│  ┌─────────────────────┐                                             │
+   208→   208→│  │ UptimeRobot (Free)  │  Pings Render every 14 min to prevent       │
+   209→   209→│  │ Keep-alive monitor  │  cold starts.                               │
+   210→   210→│  └─────────────────────┘                                             │
+   211→   211→└──────────────────────────────────────────────────────────────────────┘
+   212→   212→```
+   213→   213→
+   214→   214→---
+   215→   215→
+   216→   216→## 3. Database Schema Overview
+   217→   217→
+   218→   218→### Core Entity Relationships
+   219→   219→
+   220→   220→```
+   221→   221→┌───────────┐       ┌──────────────┐       ┌──────────────┐
+   222→   222→│   Users   │───┐   │  Documents   │───┐   │   Invoices   │
+   223→   223→│           │   │   │              │   │   │              │
+   224→   224→│ id        │   │   │ id           │   │   │ id           │
+   225→   225→│ email     │   ├──▶│ uploaded_by  │   ├──▶│ document_id  │
+   226→   226→│ role      │   │   │ file_path    │   │   │ vendor_id    │
+   227→   227→│ org_id    │   │   │ doc_type     │   │   │ invoice_no   │
+   228→   228→└───────────┘   │   │ status       │   │   │ gstin        │
+   229→   229→                │   │ ocr_text     │   │   │ total_amount │
+   230→   230→                │   │ confidence   │   │   │ tax_amount   │
+   231→   231→                │   └──────────────┘   │   │ status       │
+   232→   232→                │                      │   └──────┬───────┘
+   233→   233→                │   ┌──────────────┐   │          │
+   234→   234→                │   │   Vendors    │   │   ┌──────▼───────┐
+   235→   235→                │   │              │◀──┼───│  Line Items  │
+   236→   236→                │   │ id           │   │   │              │
+   237→   237→                │   │ name         │   │   │ invoice_id   │
+   238→   238→                │   │ gstin        │   │   │ description  │
+   239→   239→                │   │ perf_score   │   │   │ hsn_code     │
+   240→   240→                │   └──────────────┘   │   │ quantity     │
+   241→   241→                │                      │   │ rate         │
+   242→   242→                │   ┌──────────────┐   │   │ tax          │
+   243→   243→                │   │Purchase Orders│  │   │ amount       │
+   244→   244→                │   │              │   │   └──────────────┘
+   245→   245→                │   │ id           │   │
+   246→   246→                ├──▶│ created_by   │   │   ┌──────────────┐
+   247→   247→                │   │ vendor_id    │   │   │ MatchResult  │
+   248→   248→                │   │ po_number    │   │   │              │
+   249→   249→                │   │ total        │   ├──▶│ invoice_id   │
+   250→   250→                │   └──────┬───────┘   │   │ po_id        │
+   251→   251→                │          │           │   │ challan_id   │
+   252→   252→                │   ┌──────▼───────┐   │   │ match_status │
+   253→   253→                │   │Del. Challans │   │   │ discrepancies│
+   254→   254→                │   │              │───┘   └──────────────┘
+   255→   255→                │   │ id           │
+   256→   256→                │   │ po_id        │
+   257→   257→                │   │ items_recv   │       ┌──────────────┐
+   258→   258→                │   └──────────────┘       │  Approvals   │
+   259→   259→                │                          │              │
+   260→   260→                ├─────────────────────────▶│ document_id  │
+   261→   261→                │                          │ assigned_to  │
+   262→   262→                │                          │ status       │
+   263→   263→                │                          │ step         │
+   264→   264→                │   ┌──────────────┐       └──────────────┘
+   265→   265→                │   │  Audit Log   │
+   266→   266→                │   │              │       ┌──────────────┐
+   267→   267→                └──▶│ user_id      │       │  Customers   │
+   268→   268→                    │ entity_type  │       │              │
+   269→   269→                    │ action       │       │ id           │
+   270→   270→                    │ old_value    │       │ name         │
+   271→   271→                    │ new_value    │       │ gstin        │
+   272→   272→                    └──────────────┘       │ contact_info │
+   273→   273→                                           └──────────────┘
+   274→   274→```
+   275→   275→
+   276→   276→### All Tables
+   277→   277→
+   278→   278→| Table | Description | Key Columns |
+   279→   279→|---|---|---|
+   280→   280→| `users` | System users | email, hashed_password, role, is_active, org_id |
+   281→   281→| `organizations` | Multi-tenant support | name, gstin, address |
+   282→   282→| `documents` | Raw uploaded docs | file_path, file_type, file_hash, doc_type, status, ocr_text, ocr_confidence, classification_confidence, uploaded_by |
+   283→   283→| `invoices` | Parsed invoice data | document_id, vendor_id, customer_id, invoice_number, invoice_date, due_date, subtotal, cgst, sgst, igst, cess, total_amount, currency, payment_status |
+   284→   284→| `line_items` | Invoice line items | invoice_id, description, hsn_sac_code, quantity, unit, unit_price, discount, taxable_value, cgst_rate, sgst_rate, igst_rate, total |
+   285→   285→| `vendors` | Vendor master | name, gstin, pan, email, phone, address, bank_name, bank_account, ifsc, payment_terms_days, performance_score, is_verified |
+   286→   286→| `customers` | Customer master | name, gstin, pan, email, phone, billing_address, shipping_address |
+   287→   287→| `purchase_orders` | Purchase orders | po_number, vendor_id, order_date, expected_delivery, items_json, subtotal, tax, total, status, created_by |
+   288→   288→| `po_line_items` | PO line items | po_id, description, hsn_code, quantity, unit, unit_price, total |
+   289→   289→| `delivery_challans` | Goods received | challan_number, po_id, vendor_id, received_date, items_received_json, received_by |
+   290→   290→| `challan_line_items` | Challan items | challan_id, description, quantity_ordered, quantity_received, quantity_accepted, quantity_rejected, remarks |
+   291→   291→| `match_results` | 3-way match | invoice_id, po_id, challan_id, match_status (MATCHED/PARTIAL/UNMATCHED), discrepancy_details_json, matched_at, matched_by |
+   292→   292→| `approval_requests` | Approval queue | document_id, status (PENDING/APPROVED/REJECTED/ESCALATED), current_step, assigned_to, approved_by, comments, decided_at |
+   293→   293→| `approval_rules` | Approval config | name, condition_field, operator, threshold_value, approver_role, step_order, is_active |
+   294→   294→| `gst_returns` | Filed/Generated returns | return_type (GSTR1/GSTR2B/GSTR3B), period (e.g., "2026-06"), data_json, status, generated_at |
+   295→   295→| `gst_reconciliation` | Recon results | invoice_id, portal_entry_id, match_status, discrepancy_type, amount_difference, portal_data_json |
+   296→   296→| `gl_codes` | Chart of accounts | code, description, category, parent_id, is_active |
+   297→   297→| `cost_centers` | Cost centers | code, name, department, is_active |
+   298→   298→| `custom_rules` | Automation rules | name, trigger_event, condition_json, action_json, priority, is_active |
+   299→   299→| `contact_history` | CRM interactions | entity_type (vendor/customer), entity_id, contact_type (email/call/meeting), subject, notes, contacted_by, contacted_at |
+   300→   300→| `tags` | Entity tags | name, color, entity_type |
+   301→   301→| `entity_tags` | Tag assignments | tag_id, entity_type, entity_id |
+   302→   302→| `notes` | Entity notes | entity_type, entity_id, content, created_by |
+   303→   303→| `audit_logs` | Change history | entity_type, entity_id, action (CREATE/UPDATE/DELETE), old_value_json, new_value_json, user_id, ip_address |
+   304→   304→| `email_configs` | Email ingestion | imap_host, imap_port, username, encrypted_password, folder, poll_interval_minutes, is_active |
+   305→   305→| `processing_queue` | Background jobs | document_id, task_id, status, started_at, completed_at, error_message |
+   306→   306→
+   307→   307→---
+   308→   308→
+   309→   309→## 4. LangGraph Workflow Designs
+   310→   310→
+   311→   311→### 4.1 Document Processing Pipeline
+   312→   312→
+   313→   313→```
+   314→   314→                    ┌──────────┐
+   315→   315→                    │  START   │
+   316→   316→                    └────┬─────┘
+   317→   317→                         │
+   318→   318→                    ┌────▼─────┐
+   319→   319→                    │  Upload  │ Save file, create DB record
+   320→   320→                    │  & Store │
+   321→   321→                    └────┬─────┘
+   322→   322→                         │
+   323→   323→                    ┌────▼──────────┐
+   324→   324→                    │ Check source  │
+   325→   325→                    └────┬──────┬───┘
+   326→   326→                         │      │
+   327→   327→                  Android │      │ Web/Email
+   328→   328→                  (has    │      │ (no OCR text)
+   329→   329→                  OCR text)│      │
+   330→   330→                         │      ┌▼───────────┐
+   331→   331→                         │      │ Tesseract  │ Lightweight
+   332→   332→                         │      │ OCR (~50MB)│ fallback
+   333→   333→                         │      └────┬──────┘
+   334→   334→                         │           │
+   335→   335→                    ┌────▼─────────▼┐
+   336→   336→                    │  Classify       │ Keyword + LLM classification
+   337→   337→                    │  Document       │
+   338→   338→                    └────┬──────────┘
+   339→   339→                         │
+   340→   340→                    ┌────▼─────────┐
+   341→   341→                    │   Extract       │ LLM structured extraction
+   342→   342→                    │   Fields        │ (type-specific prompts)
+   343→   343→                    └────┬─────────┘
+   344→   344→                         │
+   345→   345→                    ┌────▼─────────┐
+   346→   346→                    │  Validate       │ Schema validation
+   347→   347→                    │  Data           │ GSTIN format, date ranges, etc.
+   348→   348→                    └────┬─────────┘
+   349→   349→                         │
+   350→   350→              ┌──────────▼──────────┐
+   351→   351→              │  Duplicate Check    │ Hash + semantic matching
+   352→   352→              └──────────┬──────────┘
+   353→   353→                         │
+   354→   354→                    ┌────▼─────┐     ┌─────────────┐
+   355→   355→                    │ Is Dup?  │─Yes─▶│ Flag & Stop │
+   356→   356→                    └────┬─────┘     └─────────────┘
+   357→   357→                         │No
+   358→   358→              ┌──────────▼──────────┐
+   359→   359→              │   Fraud / Anomaly   │ Rule-based + LLM scoring
+   360→   360→              │     Detection       │
+   361→   361→              └──────────┬──────────┘
+   362→   362→                         │
+   363→   363→              ┌──────────▼──────────┐
+   364→   364→              │   Route to          │ Based on type + amount
+   365→   365→              │   Approval          │ + fraud score
+   366→   366→              └──────────┬──────────┘
+   367→   367→                         │
+   368→   368→                    ┌────▼─────┐
+   369→   369→                    │   END    │ Document processed & queued
+   370→   370→                    └──────────┘
+   371→   371→```
+   372→   372→
+   373→   373→### 4.2 Approval Workflow
+   374→   374→
+   375→   375→```
+   376→   376→              ┌──────────┐
+   377→   377→              │  START   │
+   378→   378→              └────┬─────┘
+   379→   379→                   │
+   380→   380→              ┌────▼──────────┐
+   381→   381→              │ Check Amount  │
+   382→   382→              │ & Fraud Score │
+   383→   383→              └────┬──────────┘
+   384→   384→                   │
+   385→   385→         ┌─────────┼──────────┐
+   386→   386→         │         │          │
+   387→   387→    Low Risk   Medium Risk  High Risk
+   388→   388→    (<10K)     (10K-1L)     (>1L or flagged)
+   389→   389→         │         │          │
+   390→   390→    ┌────▼───┐ ┌───▼────┐ ┌──▼──────┐
+   391→   391→    │ Auto   │ │Manager │ │Director │
+   392→   392→    │Approve │ │Review  │ │Review   │
+   393→   393→    └────┬───┘ └───┬────┘ └──┬──────┘
+   394→   394→         │         │          │
+   395→   395→         │    ┌────▼───┐ ┌───▼────┐
+   396→   396→         │    │Approved│ │Approved│
+   397→   397→         │    │   ?    │ │   ?    │
+   398→   398→         │    └─┬───┬──┘ └─┬───┬──┘
+   399→   399→         │   Yes│   │No  Yes│   │No
+   400→   400→         │      │   │       │   │
+   401→   401→         │      │ ┌─▼────┐  │ ┌─▼────┐
+   402→   402→         │      │ │Reject│  │ │Reject│
+   403→   403→         │      │ └──────┘  │ └──────┘
+   404→   404→         │      │           │
+   405→   405→         └──────┴───────────┘
+   406→   406→                   │
+   407→   407→              ┌────▼─────┐
+   408→   408→              │ Finalize │ Update status, audit log
+   409→   409→              └────┬─────┘
+   410→   410→                   │
+   411→   411→              ┌────▼─────┐
+   412→   412→              │   END    │
+   413→   413→              └──────────┘
+   414→   414→```
+   415→   415→
+   416→   416→### 4.3 Three-Way Matching Workflow
+   417→   417→
+   418→   418→```
+   419→   419→              ┌──────────┐
+   420→   420→              │  START   │ Input: Invoice ID
+   421→   421→              └────┬─────┘
+   422→   422→                   │
+   423→   423→              ┌────▼──────────┐
+   424→   424→              │ Fetch Invoice │
+   425→   425→              │ + Line Items  │
+   426→   426→              └────┬──────────┘
+   427→   427→                   │
+   428→   428→              ┌────▼──────────┐
+   429→   429→              │ Find Matching │ By PO number, vendor, or
+   430→   430→              │ PO            │ line item similarity
+   431→   431→              └────┬──────────┘
+   432→   432→                   │
+   433→   433→              ┌────▼───┐
+   434→   434→              │PO Found│──No──▶ Flag as Unmatched
+   435→   435→              └────┬───┘
+   436→   436→                   │Yes
+   437→   437→              ┌────▼──────────┐
+   438→   438→              │ Find Matching │
+   439→   439→              │ Challan        │
+   440→   440→              └────┬──────────┘
+   441→   441→                   │
+   442→   442→              ┌────▼───────┐
+   443→   443→              │Challan Found│──No──▶ Partial Match (2-way)
+   444→   444→              └────┬───────┘
+   445→   445→                   │Yes
+   446→   446→              ┌────▼──────────────┐
+   447→   447→              │ Compare Line Items│
+   448→   448→              │ Invoice ↔ PO ↔    │
+   449→   449→              │ Challan           │
+   450→   450→              └────┬──────────────┘
+   451→   451→                   │
+   452→   452→              ┌────▼────────────┐
+   453→   453→              │ Within          │
+   454→   454→              │ Tolerance?      │
+   455→   455→              └────┬───────┬────┘
+   456→   456→                   │Yes    │No
+   457→   457→              ┌────▼────┐ ┌▼────────────┐
+   458→   458→              │ MATCHED │ │ Discrepancy │
+   459→   459→              │         │ │ Report      │
+   460→   460→              └────┬────┘ └─────┬───────┘
+   461→   461→                   │            │
+   462→   462→              ┌────▼────────────▼──┐
+   463→   463→              │  Store Result +    │
+   464→   464→              │  Notify            │
+   465→   465→              └────────────────────┘
+   466→   466→```
+   467→   467→
+   468→   468→---
+   469→   469→
+   470→   470→## 5. Streamlit Dashboard Layout
+   471→   471→
+   472→   472→### Desktop Layout (Full View)
+   473→   473→
+   474→   474→```
+   475→   475→┌─────────────────────────────────────────────────────────────────────┐
+   476→   476→│ ┌─────────────┐ ┌─────────────────────────────────────────────────┐ │
+   477→   477→│ │             │ │  Header: Logo + Search + Notifications + User   │ │
+   478→   478→│ │  SIDEBAR    │ ├─────────────────────────────────────────────────┤ │
+   479→   479→│ │             │ │                                                 │ │
+   480→   480→│ │ 📊 Dashboard│ │  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐  │ │
+   481→   481→│ │ 📄 Documents│ │  │Total   │ │Pending │ │Process │ │Savings │  │ │
+   482→   482→│ │ 🧾 Invoices │ │  │Invoices│ │Approval│ │  Rate  │ │  ROI   │  │ │
+   483→   483→│ │ 🏢 Vendors  │ │  │ 1,247  │ │   23   │ │ 94.2%  │ │ ₹4.2L  │  │ │
+   484→   484→│ │ 👥 Customers│ │  └────────┘ └────────┘ └────────┘ └────────┘  │ │
+   485→   485→│ │ 📦 POs      │ │                                                 │ │
+   486→   486→│ │ 🔗 Matching │ │  ┌─────────────────────┐ ┌───────────────────┐  │ │
+   487→   487→│ │ 💰 GST      │ │  │                     │ │                   │  │ │
+   488→   488→│ │ 📈 Analytics│ │  │  Spend Trend Chart  │ │  Recent Activity  │  │ │
+   489→   489→│ │ 🤖 Copilot  │ │  │  (Plotly line)      │ │  Feed             │  │ │
+   490→   490→│ │ 👤 CRM      │ │  │                     │ │                   │  │ │
+   491→   491→│ │ ⚙️ Settings │ │  └─────────────────────┘ └───────────────────┘  │ │
+   492→   492→│ │ 📋 Audit    │ │                                                 │ │
+   493→   493→│ │ 👥 Users    │ │  ┌─────────────────────┐ ┌───────────────────┐  │ │
+   494→   494→│ │             │ │  │ Vendor Distribution │ │ Processing Queue  │  │ │
+   495→   495→│ │ ─────────── │ │  │ (Pie chart)         │ │ Status            │  │ │
+   496→   496→│ │ v1.0.0      │ │  │                     │ │                   │  │ │
+   497→   497→│ │ Org: Acme   │ │  └─────────────────────┘ └───────────────────┘  │ │
+   498→   498→│ └─────────────┘ └─────────────────────────────────────────────────┘ │
+   499→   499→└─────────────────────────────────────────────────────────────────────┘
+   500→   500→```
+   501→   501→
+   502→   502→### Mobile Layout (Limited View)
+   503→   503→
+   504→   504→```
+   505→   505→┌─────────────────────────────┐
+   506→   506→│  📱 AutoFinDocs             │
+   507→   507→│  ─────────────────────────  │
+   508→   508→│                             │
+   509→   509→│  ⚠️ For the best experience │
+   510→   510→│  use our Android app or     │
+   511→   511→│  desktop browser.           │
+   512→   512→│                             │
+   513→   513→│  [Download APK]             │
+   514→   514→│                             │
+   515→   515→│  ─────────── OR ──────────  │
+   516→   516→│                             │
+   517→   517→│  Quick View (Limited):      │
+   518→   518→│                             │
+   519→   519→│  ┌────────┐ ┌────────┐     │
+   520→   520→│  │Invoices│ │Pending │     │
+   521→   521→│  │ 1,247  │ │   23   │     │
+   522→   522→│  └────────┘ └────────┘     │
+   523→   523→│                             │
+   524→   524→│  📷 Quick Scan              │
+   525→   525→│  📋 Recent Documents        │
+   526→   526→│  ✅ Pending Approvals       │
+   527→   527→│                             │
+   528→   528→└─────────────────────────────┘
+   529→   529→```
+   530→   530→
+   531→   531→---
+   532→   532→
+   533→   533→## 6. API Endpoint Summary
+   534→   534→
+   535→   535→### Auth
+   536→   536→| Method | Endpoint | Description |
+   537→   537→|---|---|---|
+   538→   538→| POST | `/api/v1/auth/register` | Register new user |
+   539→   539→| POST | `/api/v1/auth/login` | Login, returns JWT |
+   540→   540→| POST | `/api/v1/auth/refresh` | Refresh access token |
+   541→   541→| GET | `/api/v1/auth/me` | Get current user profile |
+   542→   542→
+   543→   543→### Documents
+   544→   544→| Method | Endpoint | Description |
+   545→   545→|---|---|---|
+   546→   546→| POST | `/api/v1/documents/upload` | Upload document (multipart) |
+   547→   547→| POST | `/api/v1/documents/upload-batch` | Bulk upload |
+   548→   548→| GET | `/api/v1/documents` | List documents (paginated, filtered) |
+   549→   549→| GET | `/api/v1/documents/{id}` | Get document detail + extracted data |
+   550→   550→| DELETE | `/api/v1/documents/{id}` | Soft delete document |
+   551→   551→| GET | `/api/v1/documents/{id}/ocr-preview` | Get OCR text preview |
+   552→   552→| POST | `/api/v1/documents/{id}/reprocess` | Re-run OCR + extraction |
+   553→   553→
+   554→   554→### Invoices
+   555→   555→| Method | Endpoint | Description |
+   556→   556→|---|---|---|
+   557→   557→| GET | `/api/v1/invoices` | List invoices |
+   558→   558→| GET | `/api/v1/invoices/{id}` | Invoice detail with line items |
+   559→   559→| PUT | `/api/v1/invoices/{id}` | Update invoice fields |
+   560→   560→| GET | `/api/v1/invoices/{id}/history` | Version history |
+   561→   561→
+   562→   562→### Vendors & Customers
+   563→   563→| Method | Endpoint | Description |
+   564→   564→|---|---|---|
+   565→   565→| GET/POST | `/api/v1/vendors` | List / Create vendor |
+   566→   566→| GET/PUT/DELETE | `/api/v1/vendors/{id}` | CRUD vendor |
+   567→   567→| GET | `/api/v1/vendors/{id}/invoices` | Vendor's invoices |
+   568→   568→| GET | `/api/v1/vendors/{id}/performance` | Performance score |
+   569→   569→| GET/POST | `/api/v1/customers` | List / Create customer |
+   570→   570→| GET/PUT/DELETE | `/api/v1/customers/{id}` | CRUD customer |
+   571→   571→
+   572→   572→### CRM
+   573→   573→| Method | Endpoint | Description |
+   574→   574→|---|---|---|
+   575→   575→| GET/POST | `/api/v1/crm/contacts` | Contact history |
+   576→   576→| GET/POST | `/api/v1/crm/tags` | Tag management |
+   577→   577→| POST | `/api/v1/crm/tags/{id}/assign` | Assign tag to entity |
+   578→   578→| GET/POST | `/api/v1/crm/notes` | Notes management |
+   579→   579→
+   580→   580→### Purchase Orders & Matching
+   581→   581→| Method | Endpoint | Description |
+   582→   582→|---|---|---|
+   583→   583→| GET/POST | `/api/v1/purchase-orders` | List / Create PO |
+   584→   584→| GET/PUT | `/api/v1/purchase-orders/{id}` | CRUD PO |
+   585→   585→| POST | `/api/v1/matching/match/{invoice_id}` | Run 3-way match |
+   586→   586→| GET | `/api/v1/matching/results` | List match results |
+   587→   587→| GET | `/api/v1/matching/results/{id}` | Match detail |
+   588→   588→
+   589→   589→### Approvals
+   590→   590→| Method | Endpoint | Description |
+   591→   591→|---|---|---|
+   592→   592→| GET | `/api/v1/approvals/pending` | Pending approvals |
+   593→   593→| POST | `/api/v1/approvals/{id}/approve` | Approve document |
+   594→   594→| POST | `/api/v1/approvals/{id}/reject` | Reject document |
+   595→   595→| POST | `/api/v1/approvals/{id}/escalate` | Escalate to higher role |
+   596→   596→| GET | `/api/v1/approvals/rules` | Get approval rules |
+   597→   597→| POST | `/api/v1/approvals/rules` | Create approval rule |
+   598→   598→
+   599→   599→### GST Compliance
+   600→   600→| Method | Endpoint | Description |
+   601→   601→|---|---|---|
+   602→   602→| POST | `/api/v1/gst/reconcile` | Run reconciliation |
+   603→   603→| GET | `/api/v1/gst/gstr1-summary` | GSTR-1 summary |
+   604→   604→| GET | `/api/v1/gst/gstr2b-comparison` | GSTR-2B comparison |
+   605→   605→| GET | `/api/v1/gst/itc-mismatches` | ITC mismatch report |
+   606→   606→| POST | `/api/v1/gst/upload-portal-data` | Upload GST portal data |
+   607→   607→
+   608→   608→### Analytics
+   609→   609→| Method | Endpoint | Description |
+   610→   610→|---|---|---|
+   611→   611→| GET | `/api/v1/analytics/spend-trends` | Spend over time |
+   612→   612→| GET | `/api/v1/analytics/vendor-analysis` | Vendor spending analysis |
+   613→   613→| GET | `/api/v1/analytics/automation-roi` | Automation ROI metrics |
+   614→   614→| GET | `/api/v1/analytics/processing-metrics` | Doc processing stats |
+   615→   615→| GET | `/api/v1/analytics/aging` | Invoice aging report |
+   616→   616→
+   617→   617→### AI Copilot
+   618→   618→| Method | Endpoint | Description |
+   619→   619→|---|---|---|
+   620→   620→| POST | `/api/v1/copilot/query` | Natural language query |
+   621→   621→| GET | `/api/v1/copilot/history` | Conversation history |
+   622→   622→| GET | `/api/v1/copilot/suggestions` | Suggested queries |
+   623→   623→
+   624→   624→### Import / Export
+   625→   625→| Method | Endpoint | Description |
+   626→   626→|---|---|---|
+   627→   627→| POST | `/api/v1/import/upload` | Upload Excel/CSV for import |
+   628→   628→| POST | `/api/v1/import/preview` | Preview + column mapping |
+   629→   629→| POST | `/api/v1/import/execute` | Execute import |
+   630→   630→| POST | `/api/v1/export` | Export data (format, filters) |
+   631→   631→
+   632→   632→### Master Data
+   633→   633→| Method | Endpoint | Description |
+   634→   634→|---|---|---|
+   635→   635→| GET/POST | `/api/v1/master/gl-codes` | GL code management |
+   636→   636→| GET/POST | `/api/v1/master/approval-hierarchies` | Approval config |
+   637→   637→| GET/POST | `/api/v1/master/custom-rules` | Custom automation rules |
+   638→   638→| GET/POST | `/api/v1/master/tax-rates` | Tax rate config |
+   639→   639→
+   640→   640→### Audit & Users
+   641→   641→| Method | Endpoint | Description |
+   642→   642→|---|---|---|
+   643→   643→| GET | `/api/v1/audit-logs` | Search audit trail |
+   644→   644→| GET | `/api/v1/users` | List users (admin) |
+   645→   645→| PUT | `/api/v1/users/{id}/role` | Update user role |
+   646→   646→| POST | `/api/v1/users/{id}/deactivate` | Deactivate user |
+   647→   647→
+   648→   648→### Bulk Operations
+   649→   649→| Method | Endpoint | Description |
+   650→   650→|---|---|---|
+   651→   651→| POST | `/api/v1/bulk/approve` | Bulk approve documents |
+   652→   652→| POST | `/api/v1/bulk/delete` | Bulk soft delete |
+   653→   653→| POST | `/api/v1/bulk/update` | Bulk update fields |
+   654→   654→| POST | `/api/v1/bulk/export` | Bulk export |
+   655→   655→
+   656→   656→---
+   657→   657→
+   658→   658→## 7. Security Considerations
+   659→   659→
+   660→   660→- **JWT tokens** with 24h expiry, refresh token rotation
+   661→   661→- **RBAC**: Admin > Manager > Accountant > Viewer (cumulative permissions)
+   662→   662→- **Password**: bcrypt with 12 rounds minimum
+   663→   663→- **File uploads**: Validate MIME type, max size 25MB, virus scan path (optional)
+   664→   664→- **SQL injection**: Prevented via SQLAlchemy ORM (parameterized queries only)
+   665→   665→- **XSS**: Streamlit sanitizes by default; custom HTML escaped
+   666→   666→- **CORS**: Whitelist frontend origin only
+   667→   667→- **Rate limiting**: 100 req/min for API, 10 req/min for LLM endpoints
+   668→   668→- **Audit**: All state-changing operations logged with user, IP, timestamp
+   669→   669→- **Secrets**: Never in code; always via environment variables
+   670→   670→- **HTTPS**: Enforced via Render's TLS termination
+   671→   671→
+   672→   672→---
+   673→   673→
+   674→   674→## 8. Performance Targets
+   675→   675→
+   676→   676→| Metric | Target |
+   677→   677→|---|---|
+   678→   678→| API response (CRUD) | < 200ms p95 |
+   679→   679→| Document upload + queue | < 1s |
+   680→   680→| OCR processing | < 30s per page |
+   681→   681→| LLM extraction | < 15s per document |
+   682→   682→| Full pipeline (upload → extracted) | < 60s |
+   683→   683→| Dashboard page load | < 3s |
+   684→   684→| Concurrent users supported | 50+ |
+   685→   685→| Database query (indexed) | < 50ms |
+   686→   686→
+   687→   687→---
+   688→   688→
+   689→   689→## 9. Estimated Timeline
+   690→   690→
+   691→   691→| Phase | Duration | Cumulative |
+   692→   692→|---|---|---|
+   693→   693→| Phase 1: Foundation | 3 days | Day 3 |
+   694→   694→| Phase 2: Document Processing | 4 days | Day 7 |
+   695→   695→| Phase 3: Duplicate/Fraud + Approvals | 3 days | Day 10 |
+   696→   696→| Phase 4: CRM | 3 days | Day 13 |
+   697→   697→| Phase 5: PO + 3-Way Matching | 3 days | Day 16 |
+   698→   698→| Phase 6: GST Compliance | 3 days | Day 19 |
+   699→   699→| Phase 7: Import/Export + Master Data | 3 days | Day 22 |
+   700→   700→| Phase 8: Analytics + AI Copilot | 4 days | Day 26 |
+   701→   701→| Phase 9: Audit + Users + Email | 3 days | Day 29 |
+   702→   702→| Phase 10: Free-Tier Deploy + Polish | 4 days | Day 33 |
+   703→   703→
+   704→   704→**Total: ~33 working days for full platform.**
+   705→   705→
+   706→   706→---
+   707→   707→
+   708→   708→## 10. Open Questions for User
+   709→   709→
+   710→   710→1. **LLM Provider**: Which LLM do you want as the primary provider? (OpenAI GPT-4o / Google Gemini / Local Ollama)
+   711→   711→2. **Multi-tenancy**: Should the platform support multiple organizations, or is it single-org?
+   712→   712→3. **Android APK**: Is there an existing Android app, or should the mobile banner just show a placeholder link?
+   713→   713→4. **Email ingestion**: Which email providers need to be supported? Gmail-only or generic IMAP?
+   714→   714→5. **GST portal integration**: Is this manual CSV upload from the portal, or do you want API integration (requires GSP)?
+   715→   715→6. **Existing data**: Do you have existing invoice/vendor data to migrate, or starting fresh?
+   716→   716→7. **Supabase region**: Which region for your Supabase project? (Closest to your users for lowest latency)
+   717→   717→8. **Celery strategy**: On Render free tier you only get 1 web service. Run Celery worker in-process (via BackgroundTasks + threading) or pay for a separate worker service?
+   718→   718→

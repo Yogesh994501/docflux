@@ -1,0 +1,1433 @@
+     1→     1→# instruction.md — Phase-Wise Execution Instructions for Subagents
+     2→     2→
+     3→     3→> **Purpose**: This file provides precise, step-by-step execution instructions for each phase of the AutoFinDocs platform. Each phase is a self-contained unit of work that a subagent can pick up and execute independently, as long as prior phases are completed.
+     4→     4→
+     5→     5→> **Root Directory**: `c:\D-Drive\project_ww1`
+     6→     6→
+     7→     7→> **Critical Rules for ALL Subagents**:
+     8→     8→> 1. Read `CLAUDE.md` before starting ANY phase — it defines all conventions.
+     9→     9→> 2. Never hard-code credentials. Always use `backend/config.py` (Pydantic Settings from `.env`).
+    10→    10→> 3. Use `from __future__ import annotations` in every Python file.
+    11→    11→> 4. Use async everywhere in FastAPI (routes, DB sessions, services).
+    12→    12→> 5. All financial amounts use `Numeric(15, 2)` — never `Float`.
+    13→    13→> 6. Every model inherits from `Base` in `backend/models/base.py`.
+    14→    14→> 7. Pydantic schemas use `model_config = ConfigDict(from_attributes=True)`.
+    15→    15→> 8. All routes are under `/api/v1/` prefix.
+    16→    16→> 9. Wrap API responses: `{"status": "success", "data": ...}` or `{"status": "error", "detail": ...}`.
+    17→    17→> 10. Streamlit NEVER imports backend code directly — all communication via `frontend/api_client.py` HTTP calls.
+    18→    18→
+    19→    19→---
+    20→    20→
+    21→    21→## PHASE 1 — Foundation
+    22→    22→
+    23→    23→**Subagent Role**: `Foundation Builder`
+    24→    24→**Prerequisites**: Empty workspace
+    25→    25→**Outputs**: Working backend + frontend with auth, running locally
+    26→    26→
+    27→    27→### Step 1.1 — Project Scaffolding
+    28→    28→
+    29→    29→Create the following root files:
+    30→    30→
+    31→    31→**`.gitignore`**:
+    32→    32→```
+    33→    33→__pycache__/
+    34→    34→*.pyc
+    35→    35→.env
+    36→    36→venv/
+    37→    37→.venv/
+    38→    38→uploads/
+    39→    39→*.egg-info/
+    40→    40→dist/
+    41→    41→build/
+    42→    42→.pytest_cache/
+    43→    43→.ruff_cache/
+    44→    44→htmlcov/
+    45→    45→.coverage
+    46→    46→```
+    47→    47→
+    48→    48→**`.env.example`** — Copy the environment variables block exactly from `CLAUDE.md` (Supabase + Upstash + JWT + LLM + Storage + Email + App sections).
+    49→    49→
+    50→    50→**`pyproject.toml`**:
+    51→    51→```toml
+    52→    52→[project]
+    53→    53→name = "autofinocs"
+    54→    54→version = "0.1.0"
+    55→    55→requires-python = ">=3.11"
+    56→    56→
+    57→    57→[tool.ruff]
+    58→    58→line-length = 100
+    59→    59→target-version = "py311"
+    60→    60→
+    61→    61→[tool.black]
+    62→    62→line-length = 100
+    63→    63→target-version = ["py311"]
+    64→    64→
+    65→    65→[tool.pytest.ini_options]
+    66→    66→asyncio_mode = "auto"
+    67→    67→testpaths = ["tests"]
+    68→    68→```
+    69→    69→
+    70→    70→**`requirements/base.txt`**:
+    71→    71→```
+    72→    72→python-dotenv==1.1.0
+    73→    73→pydantic==2.11.3
+    74→    74→pydantic-settings==2.9.1
+    75→    75→sqlalchemy[asyncio]==2.0.41
+    76→    76→asyncpg==0.30.0
+    77→    77→alembic==1.16.2
+    78→    78→structlog==25.4.0
+    79→    79→```
+    80→    80→
+    81→    81→**`requirements/api.txt`**:
+    82→    82→```
+    83→    83→-r base.txt
+    84→    84→fastapi==0.115.12
+    85→    85→uvicorn[standard]==0.34.3
+    86→    86→python-jose[cryptography]==3.5.0
+    87→    87→passlib[bcrypt]==1.7.4
+    88→    88→python-multipart==0.0.20
+    89→    89→httpx==0.28.1
+    90→    90→celery[redis]==5.5.2
+    91→    91→redis==5.3.0
+    92→    92→supabase==2.15.2
+    93→    93→```
+    94→    94→
+    95→    95→**`requirements/worker.txt`**:
+    96→    96→```
+    97→    97→-r base.txt
+    98→    98→celery[redis]==5.5.2
+    99→    99→redis==5.3.0
+   100→   100→paddleocr==2.10.0
+   101→   101→paddlepaddle==3.1.0
+   102→   102→pdf2image==1.17.0
+   103→   103→Pillow==11.2.1
+   104→   104→langchain==0.3.25
+   105→   105→langchain-core==0.3.59
+   106→   106→langgraph==0.4.8
+   107→   107→langchain-openai==0.3.18
+   108→   108→langchain-google-genai==2.1.5
+   109→   109→```
+   110→   110→
+   111→   111→**`requirements/frontend.txt`**:
+   112→   112→```
+   113→   113→streamlit==1.45.1
+   114→   114→httpx==0.28.1
+   115→   115→plotly==6.1.2
+   116→   116→pandas==2.3.0
+   117→   117→streamlit-option-menu==0.4.0
+   118→   118→```
+   119→   119→
+   120→   120→### Step 1.2 — Backend Config & Database
+   121→   121→
+   122→   122→**`backend/__init__.py`**: Empty file.
+   123→   123→
+   124→   124→**`backend/config.py`**:
+   125→   125→```python
+   126→   126→from __future__ import annotations
+   127→   127→from pydantic_settings import BaseSettings, SettingsConfigDict
+   128→   128→
+   129→   129→class Settings(BaseSettings):
+   130→   130→    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+   131→   131→
+   132→   132→    # Supabase
+   133→   133→    SUPABASE_URL: str = ""
+   134→   134→    SUPABASE_ANON_KEY: str = ""
+   135→   135→    SUPABASE_SERVICE_ROLE_KEY: str = ""
+   136→   136→    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/autofinocs"
+   137→   137→
+   138→   138→    # Upstash Redis
+   139→   139→    REDIS_URL: str = "redis://localhost:6379/0"
+   140→   140→
+   141→   141→    # Auth
+   142→   142→    JWT_SECRET_KEY: str = "change-me"
+   143→   143→    JWT_ALGORITHM: str = "HS256"
+   144→   144→    JWT_EXPIRATION_MINUTES: int = 1440
+   145→   145→
+   146→   146→    # LLM
+   147→   147→    LLM_PROVIDER: str = "gemini"
+   148→   148→    OPENAI_API_KEY: str = ""
+   149→   149→    GEMINI_API_KEY: str = ""
+   150→   150→    OLLAMA_BASE_URL: str = "http://localhost:11434"
+   151→   151→
+   152→   152→    # Storage
+   153→   153→    STORAGE_BACKEND: str = "local"
+   154→   154→    SUPABASE_STORAGE_BUCKET: str = "documents"
+   155→   155→    UPLOAD_DIR: str = "./uploads"
+   156→   156→
+   157→   157→    # Email
+   158→   158→    IMAP_HOST: str = "imap.gmail.com"
+   159→   159→    IMAP_PORT: int = 993
+   160→   160→    IMAP_USER: str = ""
+   161→   161→    IMAP_PASSWORD: str = ""
+   162→   162→
+   163→   163→    # App
+   164→   164→    APP_ENV: str = "development"
+   165→   165→    LOG_LEVEL: str = "INFO"
+   166→   166→    CORS_ORIGINS: list[str] = ["http://localhost:8501"]
+   167→   167→    API_BASE_URL: str = "http://localhost:8000"
+   168→   168→
+   169→   169→settings = Settings()
+   170→   170→```
+   171→   171→
+   172→   172→**`backend/database.py`**:
+   173→   173→- Create async engine using `settings.DATABASE_URL`.
+   174→   174→- Create `async_sessionmaker` bound to the engine.
+   175→   175→- Create `async def get_db()` async generator that yields sessions.
+   176→   176→- Use `pool_size=5`, `max_overflow=10`, `pool_pre_ping=True` for Supabase pooler compatibility.
+   177→   177→
+   178→   178→### Step 1.3 — Base Model Mixin
+   179→   179→
+   180→   180→**`backend/models/__init__.py`**: Import and re-export `Base` from `base.py`.
+   181→   181→
+   182→   182→**`backend/models/base.py`**:
+   183→   183→- Create `class Base(DeclarativeBase)` with `type_annotation_map` for common types.
+   184→   184→- Create `class TimestampMixin` with:
+   185→   185→  - `id`: `Mapped[uuid.UUID]` primary key, `default=uuid.uuid4`
+   186→   186→  - `created_at`: `Mapped[datetime]` server_default `func.now()`
+   187→   187→  - `updated_at`: `Mapped[datetime]` onupdate `func.now()`
+   188→   188→  - `is_deleted`: `Mapped[bool]` default `False`
+   189→   189→  - `deleted_at`: `Mapped[datetime | None]`
+   190→   190→- All subsequent models inherit from BOTH `TimestampMixin` and `Base`.
+   191→   191→
+   192→   192→### Step 1.4 — User Model + Auth
+   193→   193→
+   194→   194→**`backend/models/user.py`**:
+   195→   195→```
+   196→   196→Table: users
+   197→   197→Columns:
+   198→   198→  - id (UUID, PK)
+   199→   199→  - email (String(255), unique, indexed, not null)
+   200→   200→  - hashed_password (String(255), not null)
+   201→   201→  - full_name (String(255))
+   202→   202→  - role (String(50), default="viewer")  # admin, manager, accountant, viewer
+   203→   203→  - is_active (Boolean, default=True)
+   204→   204→  - last_login_at (DateTime, nullable)
+   205→   205→  + TimestampMixin columns
+   206→   206→```
+   207→   207→
+   208→   208→**`backend/utils/__init__.py`**: Empty.
+   209→   209→
+   210→   210→**`backend/utils/security.py`**:
+   211→   211→- `hash_password(password: str) -> str` — bcrypt via passlib
+   212→   212→- `verify_password(plain: str, hashed: str) -> bool`
+   213→   213→- `create_access_token(data: dict, expires_delta: timedelta | None) -> str` — python-jose JWT
+   214→   214→- `decode_access_token(token: str) -> dict` — raises HTTPException on failure
+   215→   215→
+   216→   216→**`backend/schemas/__init__.py`**: Empty.
+   217→   217→
+   218→   218→**`backend/schemas/auth.py`**:
+   219→   219→- `UserRegister(email, password, full_name)`
+   220→   220→- `UserLogin(email, password)`
+   221→   221→- `UserResponse(id, email, full_name, role, is_active, created_at)` — with `from_attributes=True`
+   222→   222→- `TokenResponse(access_token, token_type="bearer")`
+   223→   223→
+   224→   224→**`backend/services/__init__.py`**: Empty.
+   225→   225→
+   226→   226→**`backend/services/auth_service.py`**:
+   227→   227→- `async def register_user(db, user_data) -> User`
+   228→   228→- `async def authenticate_user(db, email, password) -> User | None`
+   229→   229→- `async def get_current_user(db, token) -> User` — decode JWT, fetch user
+   230→   230→
+   231→   231→### Step 1.5 — Auth API
+   232→   232→
+   233→   233→**`backend/api/__init__.py`**: Empty.
+   234→   234→**`backend/api/v1/__init__.py`**: Empty.
+   235→   235→**`backend/api/deps.py`**:
+   236→   236→- `get_current_user` dependency — extracts Bearer token from header, decodes, fetches user from DB.
+   237→   237→- `require_role(*roles)` — dependency factory that checks user role.
+   238→   238→
+   239→   239→**`backend/api/v1/auth.py`**:
+   240→   240→- `POST /register` — create user, return UserResponse
+   241→   241→- `POST /login` — authenticate, return TokenResponse
+   242→   242→- `GET /me` — return current user (requires auth)
+   243→   243→- `POST /refresh` — issue new token
+   244→   244→
+   245→   245→**`backend/api/router.py`**:
+   246→   246→- Create root `APIRouter` with prefix `/api/v1`
+   247→   247→- Include `auth.router`
+   248→   248→
+   249→   249→### Step 1.6 — FastAPI App Factory
+   250→   250→
+   251→   251→**`backend/main.py`**:
+   252→   252→```python
+   253→   253→# Key elements:
+   254→   254→# 1. lifespan context manager (startup/shutdown)
+   255→   255→# 2. FastAPI app with title="AutoFinDocs API", version="1.0.0"
+   256→   256→# 3. CORSMiddleware with settings.CORS_ORIGINS
+   257→   257→# 4. Include api router
+   258→   258→# 5. Health check endpoint: GET /health -> {"status": "ok"}
+   259→   259→# 6. Global exception handler for unhandled errors
+   260→   260→```
+   261→   261→
+   262→   262→### Step 1.7 — Alembic Setup
+   263→   263→
+   264→   264→- Run `alembic init alembic` from project root.
+   265→   265→- Edit `alembic.ini`: set `sqlalchemy.url` to empty (will be overridden).
+   266→   266→- Edit `alembic/env.py`:
+   267→   267→  - Import `settings.DATABASE_URL` (convert async URL to sync for Alembic: replace `asyncpg` with `psycopg2` or use `postgresql://`).
+   268→   268→  - Import `Base.metadata` from `backend.models.base`.
+   269→   269→  - Import ALL model files so they register with metadata.
+   270→   270→  - Set `target_metadata = Base.metadata`.
+   271→   271→- Generate first migration: `alembic revision --autogenerate -m "create_users_table"`
+   272→   272→
+   273→   273→### Step 1.8 — Streamlit Shell
+   274→   274→
+   275→   275→**`frontend/app.py`**:
+   276→   276→```python
+   277→   277→# 1. st.set_page_config(page_title="AutoFinDocs", page_icon="📊", layout="wide")
+   278→   278→# 2. Load and inject custom CSS from frontend/static/styles/main.css
+   279→   279→# 3. Check st.session_state for auth token
+   280→   280→# 4. If not authenticated: show login page
+   281→   281→# 5. If authenticated: show sidebar navigation + route to pages
+   282→   282→```
+   283→   283→
+   284→   284→**`frontend/config.py`**:
+   285→   285→```python
+   286→   286→API_BASE_URL = "http://localhost:8000"  # Override from env for prod
+   287→   287→```
+   288→   288→
+   289→   289→**`frontend/api_client.py`**:
+   290→   290→```python
+   291→   291→# Centralized HTTP client using httpx
+   292→   292→# - get(endpoint, token) -> response
+   293→   293→# - post(endpoint, data, token) -> response
+   294→   294→# - put(endpoint, data, token) -> response
+   295→   295→# - delete(endpoint, token) -> response
+   296→   296→# - upload_file(endpoint, file, token) -> response
+   297→   297→# All methods:
+   298→   298→#   - prepend API_BASE_URL
+   299→   299→#   - attach Authorization: Bearer {token} header
+   300→   300→#   - handle errors uniformly
+   301→   301→```
+   302→   302→
+   303→   303→**`frontend/auth.py`**:
+   304→   304→```python
+   305→   305→# - login(email, password) -> token or error
+   306→   306→# - register(email, password, full_name) -> token or error
+   307→   307→# - logout() -> clear session_state
+   308→   308→# - is_authenticated() -> bool
+   309→   309→# - get_token() -> str
+   310→   310→```
+   311→   311→
+   312→   312→**`frontend/static/styles/main.css`**:
+   313→   313→- Professional dark-themed finance dashboard CSS.
+   314→   314→- Custom sidebar styling (dark background, accent highlights).
+   315→   315→- Metric card styling with subtle shadows and rounded corners.
+   316→   316→- Data table styling with alternating row colors.
+   317→   317→- Override Streamlit default padding and fonts.
+   318→   318→- Use Google Font: Inter or Outfit.
+   319→   319→
+   320→   320→Create skeleton page files (empty pages that just show a title):
+   321→   321→- `frontend/pages/01_📊_Dashboard.py`
+   322→   322→- `frontend/pages/02_📄_Documents.py`
+   323→   323→- `frontend/pages/03_🧾_Invoices.py`
+   324→   324→- All remaining pages from CLAUDE.md folder structure (04 through 14).
+   325→   325→
+   326→   326→### Step 1.9 — Device Detection
+   327→   327→
+   328→   328→**`frontend/device_detect.py`**:
+   329→   329→```python
+   330→   330→# Inject JavaScript that detects window.innerWidth and sends it back via
+   331→   331→# streamlit-js-eval or st.components.v1.html
+   332→   332→# Function: get_screen_width() -> int | None
+   333→   333→# Function: is_mobile() -> bool (width < 768)
+   334→   334→```
+   335→   335→
+   336→   336→**`frontend/components/__init__.py`**: Empty.
+   337→   337→
+   338→   338→**`frontend/components/mobile_banner.py`**:
+   339→   339→```python
+   340→   340→# If is_mobile():
+   341→   341→#   Show warning banner with:
+   342→   342→#   - "For the best experience, use our Android app or desktop browser"
+   343→   343→#   - Download APK button (placeholder link)
+   344→   344→#   - Limited quick-access options only
+   345→   345→```
+   346→   346→
+   347→   347→### Verification — Phase 1
+   348→   348→
+   349→   349→```bash
+   350→   350→# 1. Backend starts without errors
+   351→   351→uvicorn backend.main:app --reload --port 8000
+   352→   352→
+   353→   353→# 2. Health check returns 200
+   354→   354→curl http://localhost:8000/health
+   355→   355→
+   356→   356→# 3. Swagger docs accessible
+   357→   357→# Open http://localhost:8000/docs
+   358→   358→
+   359→   359→# 4. Register + Login works
+   360→   360→curl -X POST http://localhost:8000/api/v1/auth/register \
+   361→   361→  -H "Content-Type: application/json" \
+   362→   362→  -d '{"email":"test@test.com","password":"Test1234!","full_name":"Test User"}'
+   363→   363→
+   364→   364→# 5. Frontend starts
+   365→   365→streamlit run frontend/app.py --server.port 8501
+   366→   366→
+   367→   367→# 6. Login UI works and shows sidebar after auth
+   368→   368→```
+   369→   369→
+   370→   370→---
+   371→   371→
+   372→   372→## PHASE 2 — Document Processing Core
+   373→   373→
+   374→   374→**Subagent Role**: `Document Processing Engineer`
+   375→   375→**Prerequisites**: Phase 1 complete (auth, DB, base models)
+   376→   376→**Outputs**: Upload → OCR → Classify → Extract → Store pipeline
+   377→   377→
+   378→   378→### Step 2.1 — Document & Invoice Models
+   379→   379→
+   380→   380→**`backend/models/document.py`**:
+   381→   381→```
+   382→   382→Table: documents
+   383→   383→Columns:
+   384→   384→  - id (UUID, PK) + TimestampMixin
+   385→   385→  - file_name (String(500), not null)
+   386→   386→  - file_path (String(1000), not null) — Supabase storage path or local path
+   387→   387→  - file_type (String(20)) — pdf, png, jpg, jpeg
+   388→   388→  - file_size_bytes (Integer)
+   389→   389→  - file_hash (String(64)) — SHA-256 for duplicate detection
+   390→   390→  - doc_type (String(50), default="UNKNOWN") — GST_INVOICE, RECEIPT, EBILL, CREDIT_NOTE, DEBIT_NOTE, PURCHASE_ORDER, DELIVERY_CHALLAN, UNKNOWN
+   391→   391→  - status (String(30), default="UPLOADED") — UPLOADED, PROCESSING, OCR_COMPLETE, CLASSIFIED, EXTRACTED, VALIDATED, APPROVED, REJECTED, ERROR
+   392→   392→  - ocr_text (Text, nullable) — raw OCR output
+   393→   393→  - ocr_confidence (Numeric(5,2), nullable)
+   394→   394→  - classification_confidence (Numeric(5,2), nullable)
+   395→   395→  - error_message (Text, nullable)
+   396→   396→  - uploaded_by (UUID, FK → users.id)
+   397→   397→  - processing_started_at (DateTime, nullable)
+   398→   398→  - processing_completed_at (DateTime, nullable)
+   399→   399→```
+   400→   400→
+   401→   401→**`backend/models/invoice.py`**:
+   402→   402→```
+   403→   403→Table: invoices
+   404→   404→Columns:
+   405→   405→  - id (UUID, PK) + TimestampMixin
+   406→   406→  - document_id (UUID, FK → documents.id, unique)
+   407→   407→  - vendor_id (UUID, FK → vendors.id, nullable) — linked after vendor match
+   408→   408→  - customer_id (UUID, FK → customers.id, nullable)
+   409→   409→  - invoice_number (String(100), indexed)
+   410→   410→  - invoice_date (Date)
+   411→   411→  - due_date (Date, nullable)
+   412→   412→  - place_of_supply (String(100), nullable)
+   413→   413→  - vendor_name (String(500)) — as extracted from doc
+   414→   414→  - vendor_gstin (String(15), nullable)
+   415→   415→  - buyer_name (String(500), nullable)
+   416→   416→  - buyer_gstin (String(15), nullable)
+   417→   417→  - subtotal (Numeric(15,2), default=0)
+   418→   418→  - cgst_amount (Numeric(15,2), default=0)
+   419→   419→  - sgst_amount (Numeric(15,2), default=0)
+   420→   420→  - igst_amount (Numeric(15,2), default=0)
+   421→   421→  - cess_amount (Numeric(15,2), default=0)
+   422→   422→  - total_tax (Numeric(15,2), default=0)
+   423→   423→  - total_amount (Numeric(15,2), default=0)
+   424→   424→  - currency (String(3), default="INR")
+   425→   425→  - payment_status (String(20), default="UNPAID") — UNPAID, PARTIAL, PAID
+   426→   426→  - notes (Text, nullable)
+   427→   427→  - raw_extracted_json (JSON, nullable) — full LLM output for debugging
+   428→   428→```
+   429→   429→
+   430→   430→**`backend/models/line_item.py`**:
+   431→   431→```
+   432→   432→Table: line_items
+   433→   433→Columns:
+   434→   434→  - id (UUID, PK) + TimestampMixin
+   435→   435→  - invoice_id (UUID, FK → invoices.id)
+   436→   436→  - line_number (Integer)
+   437→   437→  - description (String(1000))
+   438→   438→  - hsn_sac_code (String(20), nullable)
+   439→   439→  - quantity (Numeric(15,3), default=1)
+   440→   440→  - unit (String(20), nullable) — pcs, kg, litre, etc.
+   441→   441→  - unit_price (Numeric(15,2), default=0)
+   442→   442→  - discount_percent (Numeric(5,2), default=0)
+   443→   443→  - taxable_value (Numeric(15,2), default=0)
+   444→   444→  - cgst_rate (Numeric(5,2), default=0)
+   445→   445→  - sgst_rate (Numeric(5,2), default=0)
+   446→   446→  - igst_rate (Numeric(5,2), default=0)
+   447→   447→  - cgst_amount (Numeric(15,2), default=0)
+   448→   448→  - sgst_amount (Numeric(15,2), default=0)
+   449→   449→  - igst_amount (Numeric(15,2), default=0)
+   450→   450→  - total_amount (Numeric(15,2), default=0)
+   451→   451→```
+   452→   452→
+   453→   453→**`backend/schemas/document.py`**:
+   454→   454→- `DocumentUploadResponse(id, file_name, status, created_at)`
+   455→   455→- `DocumentResponse(full model fields + line_items if invoice)`
+   456→   456→- `DocumentListResponse(items: list[DocumentResponse], total: int, page: int)`
+   457→   457→
+   458→   458→**`backend/schemas/invoice.py`**:
+   459→   459→- `InvoiceResponse`, `InvoiceDetailResponse(with line_items)`, `LineItemResponse`
+   460→   460→
+   461→   461→Generate Alembic migration: `alembic revision --autogenerate -m "add_documents_invoices_line_items"`
+   462→   462→
+   463→   463→### Step 2.2 — Storage Service
+   464→   464→
+   465→   465→**`backend/services/storage_service.py`**:
+   466→   466→```python
+   467→   467→# Abstract base:
+   468→   468→class StorageBackend(ABC):
+   469→   469→    async def save_file(self, file_content: bytes, file_name: str, content_type: str) -> str:
+   470→   470→        """Returns the storage path/URL."""
+   471→   471→    async def get_file(self, file_path: str) -> bytes:
+   472→   472→        ...
+   473→   473→    async def delete_file(self, file_path: str) -> bool:
+   474→   474→        ...
+   475→   475→    async def get_public_url(self, file_path: str) -> str:
+   476→   476→        ...
+   477→   477→
+   478→   478→# LocalStorage — saves to settings.UPLOAD_DIR/{uuid}/{filename}
+   479→   479→# SupabaseStorage — uses supabase-py client to upload to bucket
+   480→   480→#   - Initialize: supabase.create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+   481→   481→#   - Upload: client.storage.from_(bucket).upload(path, file_content)
+   482→   482→#   - Download: client.storage.from_(bucket).download(path)
+   483→   483→#   - Public URL: client.storage.from_(bucket).get_public_url(path)
+   484→   484→
+   485→   485→# Factory function:
+   486→   486→def get_storage_backend() -> StorageBackend:
+   487→   487→    if settings.STORAGE_BACKEND == "supabase":
+   488→   488→        return SupabaseStorage()
+   489→   489→    return LocalStorage()
+   490→   490→```
+   491→   491→
+   492→   492→### Step 2.3 — OCR Service
+   493→   493→
+   494→   494→**`backend/services/ocr_service.py`**:
+   495→   495→```python
+   496→   496→# class OCRService:
+   497→   497→#     def __init__(self):
+   498→   498→#         self.ocr = PaddleOCR(use_angle_cls=True, lang='en', use_gpu=False)
+   499→   499→#
+   500→   500→#     async def extract_text(self, file_content: bytes, file_type: str) -> OCRResult:
+   501→   501→#         """
+   502→   502→#         1. If PDF: convert to images using pdf2image (one image per page)
+   503→   503→#         2. Run PaddleOCR on each image
+   504→   504→#         3. Combine results
+   505→   505→#         4. Return OCRResult(text: str, confidence: float, bounding_boxes: list)
+   506→   506→#         """
+   507→   507→#
+   508→   508→#     def _pdf_to_images(self, pdf_bytes: bytes) -> list[Image]:
+   509→   509→#         from pdf2image import convert_from_bytes
+   510→   510→#         return convert_from_bytes(pdf_bytes, dpi=300)
+   511→   511→#
+   512→   512→#     def _run_ocr_on_image(self, image) -> tuple[str, float]:
+   513→   513→#         result = self.ocr.ocr(np.array(image), cls=True)
+   514→   514→#         # Parse result into text + average confidence
+   515→   515→#         return text, avg_confidence
+   516→   516→```
+   517→   517→
+   518→   518→### Step 2.4 — Classification Service
+   519→   519→
+   520→   520→**`backend/services/classification_service.py`**:
+   521→   521→```python
+   522→   522→# KEYWORD_MAP = {
+   523→   523→#     "GST_INVOICE": ["tax invoice", "gstin", "cgst", "sgst", "igst", "hsn"],
+   524→   524→#     "RECEIPT": ["receipt", "received with thanks", "payment received"],
+   525→   525→#     "EBILL": ["e-bill", "electronic bill", "utility bill"],
+   526→   526→#     "CREDIT_NOTE": ["credit note", "credit memo"],
+   527→   527→#     "DEBIT_NOTE": ["debit note", "debit memo"],
+   528→   528→#     "PURCHASE_ORDER": ["purchase order", "p.o.", "po number"],
+   529→   529→#     "DELIVERY_CHALLAN": ["delivery challan", "challan no", "goods delivered"],
+   530→   530→# }
+   531→   531→#
+   532→   532→# class ClassificationService:
+   533→   533→#     async def classify(self, ocr_text: str) -> ClassificationResult:
+   534→   534→#         # Stage 1: Keyword matching (fast)
+   535→   535→#         result = self._keyword_classify(ocr_text)
+   536→   536→#         if result.confidence >= 0.8:
+   537→   537→#             return result
+   538→   538→#         # Stage 2: LLM fallback (slower, more accurate)
+   539→   539→#         return await self._llm_classify(ocr_text)
+   540→   540→#
+   541→   541→#     def _keyword_classify(self, text: str) -> ClassificationResult:
+   542→   542→#         # Count keyword matches per category, return highest
+   543→   543→#
+   544→   544→#     async def _llm_classify(self, text: str) -> ClassificationResult:
+   545→   545→#         # Use LangChain with structured output
+   546→   546→#         # Prompt: "Classify this document into one of: [categories]. Return category and confidence."
+   547→   547→```
+   548→   548→
+   549→   549→### Step 2.5 — Extraction Service
+   550→   550→
+   551→   551→**`backend/services/extraction_service.py`**:
+   552→   552→```python
+   553→   553→# Use LangChain with Pydantic structured output parsing.
+   554→   554→# Different extraction prompts per document type.
+   555→   555→#
+   556→   556→# class ExtractionService:
+   557→   557→#     async def extract(self, ocr_text: str, doc_type: str) -> dict:
+   558→   558→#         prompt_template = self._get_prompt_for_type(doc_type)
+   559→   559→#         chain = prompt_template | llm | parser
+   560→   560→#         result = await chain.ainvoke({"text": ocr_text})
+   561→   561→#         return result
+   562→   562→#
+   563→   563→#     def _get_prompt_for_type(self, doc_type: str) -> PromptTemplate:
+   564→   564→#         # GST_INVOICE prompt extracts: invoice_number, date, vendor_name, vendor_gstin,
+   565→   565→#         #   buyer_name, buyer_gstin, line_items[], cgst, sgst, igst, total
+   566→   566→#         # PURCHASE_ORDER prompt extracts: po_number, vendor, items, delivery_date
+   567→   567→#         # etc.
+   568→   568→```
+   569→   569→
+   570→   570→### Step 2.6 — LangGraph Document Pipeline
+   571→   571→
+   572→   572→**`backend/workflows/__init__.py`**: Empty.
+   573→   573→**`backend/workflows/nodes/__init__.py`**: Empty.
+   574→   574→
+   575→   575→Create individual node files in `backend/workflows/nodes/`:
+   576→   576→- **`ocr_node.py`**: `async def ocr_node(state) -> state` — calls OCRService
+   577→   577→- **`classify_node.py`**: `async def classify_node(state) -> state` — calls ClassificationService
+   578→   578→- **`extract_node.py`**: `async def extract_node(state) -> state` — calls ExtractionService
+   579→   579→- **`validate_node.py`**: `async def validate_node(state) -> state` — GSTIN format check (15 chars, regex `\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}`), date validity, amount > 0
+   580→   580→- **`duplicate_check_node.py`**: Placeholder — full implementation in Phase 3
+   581→   581→- **`fraud_check_node.py`**: Placeholder — full implementation in Phase 3
+   582→   582→- **`route_node.py`**: `async def route_node(state) -> state` — determine next action based on classification + confidence
+   583→   583→
+   584→   584→**`backend/workflows/document_pipeline.py`**:
+   585→   585→```python
+   586→   586→# from langgraph.graph import StateGraph, END
+   587→   587→#
+   588→   588→# class DocumentState(TypedDict):
+   589→   589→#     document_id: str
+   590→   590→#     file_content: bytes
+   591→   591→#     file_type: str
+   592→   592→#     ocr_text: str
+   593→   593→#     ocr_confidence: float
+   594→   594→#     doc_type: str
+   595→   595→#     classification_confidence: float
+   596→   596→#     extracted_data: dict
+   597→   597→#     validation_errors: list[str]
+   598→   598→#     is_duplicate: bool
+   599→   599→#     fraud_score: float
+   600→   600→#     status: str
+   601→   601→#     error: str | None
+   602→   602→#
+   603→   603→# def build_document_pipeline() -> StateGraph:
+   604→   604→#     graph = StateGraph(DocumentState)
+   605→   605→#     graph.add_node("ocr", ocr_node)
+   606→   606→#     graph.add_node("classify", classify_node)
+   607→   607→#     graph.add_node("extract", extract_node)
+   608→   608→#     graph.add_node("validate", validate_node)
+   609→   609→#     graph.add_node("duplicate_check", duplicate_check_node)
+   610→   610→#     graph.add_node("fraud_check", fraud_check_node)
+   611→   611→#     graph.add_node("route", route_node)
+   612→   612→#
+   613→   613→#     graph.set_entry_point("ocr")
+   614→   614→#     graph.add_edge("ocr", "classify")
+   615→   615→#     graph.add_edge("classify", "extract")
+   616→   616→#     graph.add_edge("extract", "validate")
+   617→   617→#     graph.add_edge("validate", "duplicate_check")
+   618→   618→#     graph.add_edge("duplicate_check", "fraud_check")
+   619→   619→#     graph.add_edge("fraud_check", "route")
+   620→   620→#     graph.add_edge("route", END)
+   621→   621→#
+   622→   622→#     return graph.compile()
+   623→   623→```
+   624→   624→
+   625→   625→### Step 2.7 — Celery Task
+   626→   626→
+   627→   627→**`backend/tasks/__init__.py`**: Empty.
+   628→   628→
+   629→   629→**`backend/tasks/celery_app.py`**:
+   630→   630→```python
+   631→   631→from celery import Celery
+   632→   632→from backend.config import settings
+   633→   633→
+   634→   634→celery_app = Celery(
+   635→   635→    "autofinocs",
+   636→   636→    broker=settings.REDIS_URL,
+   637→   637→    backend=settings.REDIS_URL,
+   638→   638→)
+   639→   639→celery_app.conf.update(
+   640→   640→    task_serializer="json",
+   641→   641→    result_serializer="json",
+   642→   642→    accept_content=["json"],
+   643→   643→    timezone="Asia/Kolkata",
+   644→   644→    enable_utc=True,
+   645→   645→    task_track_started=True,
+   646→   646→    broker_connection_retry_on_startup=True,
+   647→   647→)
+   648→   648→```
+   649→   649→
+   650→   650→**`backend/tasks/document_tasks.py`**:
+   651→   651→```python
+   652→   652→# @celery_app.task(bind=True, max_retries=3)
+   653→   653→# def process_document(self, document_id: str):
+   654→   654→#     """Run the full LangGraph document pipeline."""
+   655→   655→#     # 1. Fetch document from DB
+   656→   656→#     # 2. Download file from storage
+   657→   657→#     # 3. Run pipeline: ocr → classify → extract → validate → duplicate → fraud → route
+   658→   658→#     # 4. Save results to DB (update document status, create invoice + line_items)
+   659→   659→#     # 5. Handle errors: update document.status = "ERROR", document.error_message
+   660→   660→```
+   661→   661→
+   662→   662→### Step 2.8 — Document & Invoice API
+   663→   663→
+   664→   664→**`backend/api/v1/documents.py`**:
+   665→   665→- `POST /documents/upload` — accept multipart file, validate type (pdf/png/jpg/jpeg), validate size (<50MB), compute file_hash, save to storage, create DB record, dispatch `process_document.delay(doc_id)`, return DocumentUploadResponse.
+   666→   666→- `POST /documents/upload-batch` — accept multiple files, loop above.
+   667→   667→- `GET /documents` — paginated list with filters (status, doc_type, date_range). Query params: `page`, `page_size`, `status`, `doc_type`, `search`.
+   668→   668→- `GET /documents/{id}` — detail view with related invoice + line_items.
+   669→   669→- `DELETE /documents/{id}` — soft delete.
+   670→   670→- `GET /documents/{id}/ocr-preview` — return ocr_text.
+   671→   671→- `POST /documents/{id}/reprocess` — re-dispatch pipeline.
+   672→   672→
+   673→   673→**`backend/api/v1/invoices.py`**:
+   674→   674→- `GET /invoices` — paginated list with filters.
+   675→   675→- `GET /invoices/{id}` — detail with line_items.
+   676→   676→- `PUT /invoices/{id}` — manual edit of extracted fields.
+   677→   677→
+   678→   678→Update `backend/api/router.py` to include documents and invoices routers.
+   679→   679→
+   680→   680→### Step 2.9 — Streamlit Document Page
+   681→   681→
+   682→   682→**`frontend/pages/02_📄_Documents.py`**:
+   683→   683→```python
+   684→   684→# 1. Check auth
+   685→   685→# 2. Show upload section:
+   686→   686→#    - st.file_uploader(accept_multiple_files=True, type=["pdf","png","jpg","jpeg"])
+   687→   687→#    - Upload button → calls api_client.upload_file()
+   688→   688→#    - Show progress spinner during upload
+   689→   689→# 3. Show documents table:
+   690→   690→#    - Fetch from GET /documents with pagination
+   691→   691→#    - Display: file_name, doc_type, status (with colored badges), uploaded date, confidence
+   692→   692→#    - Clickable rows → show detail
+   693→   693→# 4. Document detail (st.expander or separate section):
+   694→   694→#    - Status badge, OCR text preview
+   695→   695→#    - If invoice extracted: show all fields + line items table
+   696→   696→#    - Reprocess button
+   697→   697→#    - Delete button
+   698→   698→```
+   699→   699→
+   700→   700→### Verification — Phase 2
+   701→   701→
+   702→   702→```bash
+   703→   703→# 1. Upload a test PDF via Swagger
+   704→   704→curl -X POST http://localhost:8000/api/v1/documents/upload \
+   705→   705→  -H "Authorization: Bearer {token}" \
+   706→   706→  -F "file=@test_invoice.pdf"
+   707→   707→
+   708→   708→# 2. Check document status updates from UPLOADED → PROCESSING → EXTRACTED
+   709→   709→curl http://localhost:8000/api/v1/documents/{id}
+   710→   710→
+   711→   711→# 3. Verify invoice + line_items are created
+   712→   712→curl http://localhost:8000/api/v1/invoices
+   713→   713→
+   714→   714→# 4. Streamlit shows uploaded documents and extracted data
+   715→   715→```
+   716→   716→
+   717→   717→---
+   718→   718→
+   719→   719→## PHASE 3 — Duplicate & Fraud Detection + Approval Workflow
+   720→   720→
+   721→   721→**Subagent Role**: `Security & Workflow Engineer`
+   722→   722→**Prerequisites**: Phase 2 complete
+   723→   723→**Outputs**: Duplicate flagging, fraud scoring, configurable approval chains
+   724→   724→
+   725→   725→### Step 3.1 — Duplicate Detection
+   726→   726→
+   727→   727→**`backend/services/duplicate_service.py`**:
+   728→   728→```python
+   729→   729→# class DuplicateService:
+   730→   730→#     async def check_duplicate(self, db, document_id: str, file_hash: str,
+   731→   731→#                                invoice_data: dict) -> DuplicateResult:
+   732→   732→#         # Check 1: Exact file hash match
+   733→   733→#         existing = await db.execute(
+   734→   734→#             select(Document).where(Document.file_hash == file_hash,
+   735→   735→#                                     Document.id != document_id))
+   736→   736→#         if existing.scalar_one_or_none():
+   737→   737→#             return DuplicateResult(is_duplicate=True, match_type="EXACT_HASH", ...)
+   738→   738→#
+   739→   739→#         # Check 2: Semantic match (same invoice_number + vendor + amount + date)
+   740→   740→#         existing_invoice = await db.execute(
+   741→   741→#             select(Invoice).where(
+   742→   742→#                 Invoice.invoice_number == invoice_data.get("invoice_number"),
+   743→   743→#                 Invoice.vendor_name == invoice_data.get("vendor_name"),
+   744→   744→#                 Invoice.total_amount == invoice_data.get("total_amount"),
+   745→   745→#                 Invoice.invoice_date == invoice_data.get("invoice_date"),
+   746→   746→#                 Invoice.document_id != document_id))
+   747→   747→#         if existing_invoice.scalar_one_or_none():
+   748→   748→#             return DuplicateResult(is_duplicate=True, match_type="SEMANTIC", ...)
+   749→   749→#
+   750→   750→#         return DuplicateResult(is_duplicate=False)
+   751→   751→```
+   752→   752→
+   753→   753→### Step 3.2 — Fraud/Anomaly Detection
+   754→   754→
+   755→   755→**`backend/services/fraud_service.py`**:
+   756→   756→```python
+   757→   757→# class FraudService:
+   758→   758→#     CHECKS = [
+   759→   759→#         "gstin_format",      # GSTIN doesn't match regex
+   760→   760→#         "future_date",       # Invoice date is in the future
+   761→   761→#         "round_amount",      # Total is suspiciously round (e.g., exactly 100000)
+   762→   762→#         "amount_outlier",    # Amount > 3 std dev from vendor's average
+   763→   763→#         "velocity_check",    # >5 invoices from same vendor in 24h
+   764→   764→#         "missing_fields",    # Critical fields missing (invoice_number, date, total)
+   765→   765→#     ]
+   766→   766→#
+   767→   767→#     async def score(self, db, invoice_data: dict, document_id: str) -> FraudResult:
+   768→   768→#         flags = []
+   769→   769→#         for check in self.CHECKS:
+   770→   770→#             result = await getattr(self, f"_check_{check}")(db, invoice_data, document_id)
+   771→   771→#             if result:
+   772→   772→#                 flags.append(result)
+   773→   773→#         score = len(flags) / len(self.CHECKS)  # 0.0 to 1.0
+   774→   774→#         risk_level = "HIGH" if score > 0.5 else "MEDIUM" if score > 0.2 else "LOW"
+   775→   775→#         return FraudResult(score=score, risk_level=risk_level, flags=flags)
+   776→   776→```
+   777→   777→
+   778→   778→### Step 3.3 — Approval Model
+   779→   779→
+   780→   780→**`backend/models/approval.py`**:
+   781→   781→```
+   782→   782→Table: approval_requests
+   783→   783→  - id, document_id (FK), status (PENDING/IN_REVIEW/APPROVED/REJECTED/ESCALATED),
+   784→   784→    current_step (Integer), assigned_to (FK users.id, nullable),
+   785→   785→    approved_by (FK users.id, nullable), comments (Text), decided_at (DateTime)
+   786→   786→
+   787→   787→Table: approval_rules
+   788→   788→  - id, name (String), condition_field (String), operator (String),
+   789→   789→    threshold_value (Numeric), approver_role (String), step_order (Integer), is_active (Boolean)
+   790→   790→```
+   791→   791→
+   792→   792→### Step 3.4 — LangGraph Approval Workflow
+   793→   793→
+   794→   794→**`backend/workflows/approval_workflow.py`**:
+   795→   795→```python
+   796→   796→# States: check_rules → auto_approve | assign_reviewer → await_decision → finalize
+   797→   797→#
+   798→   798→# class ApprovalState(TypedDict):
+   799→   799→#     document_id: str
+   800→   800→#     invoice_amount: Decimal
+   801→   801→#     fraud_score: float
+   802→   802→#     fraud_risk_level: str
+   803→   803→#     current_step: int
+   804→   804→#     assigned_to: str | None
+   805→   805→#     decision: str | None  # APPROVED, REJECTED, ESCALATED
+   806→   806→#     comments: str
+   807→   807→#
+   808→   808→# Routing logic:
+   809→   809→#   - amount < 10,000 AND fraud_risk == "LOW" → auto_approve
+   810→   810→#   - amount 10,000–100,000 OR fraud_risk == "MEDIUM" → assign to manager
+   811→   811→#   - amount > 100,000 OR fraud_risk == "HIGH" → assign to director/admin
+   812→   812→```
+   813→   813→
+   814→   814→### Step 3.5 — Approval API
+   815→   815→
+   816→   816→Add to existing routes or create `backend/api/v1/approvals.py`:
+   817→   817→- `GET /approvals/pending` — list pending for current user's role
+   818→   818→- `POST /approvals/{id}/approve` — approve with optional comments
+   819→   819→- `POST /approvals/{id}/reject` — reject with required comments
+   820→   820→- `POST /approvals/{id}/escalate` — escalate to higher role
+   821→   821→- `GET /approvals/rules` — list rules (admin only)
+   822→   822→- `POST /approvals/rules` — create rule (admin only)
+   823→   823→
+   824→   824→### Step 3.6 — Streamlit Approval Queue
+   825→   825→
+   826→   826→**`frontend/components/approval_card.py`**:
+   827→   827→```python
+   828→   828→# def render_approval_card(approval: dict):
+   829→   829→#     with st.container():
+   830→   830→#         col1, col2, col3 = st.columns([3, 1, 1])
+   831→   831→#         # col1: document name, vendor, amount, fraud risk badge
+   832→   832→#         # col2: Approve button (green)
+   833→   833→#         # col3: Reject button (red)
+   834→   834→#         # Expandable: comment field, escalate option
+   835→   835→```
+   836→   836→
+   837→   837→Integrate into `frontend/pages/03_🧾_Invoices.py` or create a dedicated approvals section.
+   838→   838→
+   839→   839→### Verification — Phase 3
+   840→   840→
+   841→   841→```bash
+   842→   842→# 1. Upload duplicate document → status shows "DUPLICATE_FLAGGED"
+   843→   843→# 2. Upload suspicious document → fraud_score > 0, flags listed
+   844→   844→# 3. Low-amount invoice auto-approved
+   845→   845→# 4. High-amount invoice shows in pending approvals
+   846→   846→# 5. Manager can approve/reject from Streamlit
+   847→   847→```
+   848→   848→
+   849→   849→---
+   850→   850→
+   851→   851→## PHASE 4 — CRM + Vendor/Customer Management
+   852→   852→
+   853→   853→**Subagent Role**: `CRM Module Developer`
+   854→   854→**Prerequisites**: Phase 1 complete (Phase 2–3 optional but recommended)
+   855→   855→**Outputs**: Full vendor/customer CRUD with CRM features
+   856→   856→
+   857→   857→### Step 4.1 — Models
+   858→   858→
+   859→   859→**`backend/models/vendor.py`**:
+   860→   860→```
+   861→   861→Table: vendors
+   862→   862→  - id, name, gstin (indexed), pan, email, phone, address_line1, address_line2,
+   863→   863→    city, state, pincode, country (default="India"),
+   864→   864→    bank_name, bank_account_number, bank_ifsc,
+   865→   865→    payment_terms_days (Integer, default=30),
+   866→   866→    performance_score (Numeric(5,2), default=0),
+   867→   867→    is_verified (Boolean, default=False),
+   868→   868→    total_invoices_count (Integer, default=0),
+   869→   869→    total_invoice_amount (Numeric(15,2), default=0),
+   870→   870→    + TimestampMixin
+   871→   871→```
+   872→   872→
+   873→   873→**`backend/models/customer.py`**:
+   874→   874→```
+   875→   875→Table: customers
+   876→   876→  - id, name, gstin, pan, email, phone,
+   877→   877→    billing_address, shipping_address, city, state, pincode,
+   878→   878→    + TimestampMixin
+   879→   879→```
+   880→   880→
+   881→   881→**`backend/models/crm.py`**:
+   882→   882→```
+   883→   883→Table: contact_history
+   884→   884→  - id, entity_type (vendor/customer), entity_id (UUID),
+   885→   885→    contact_type (email/call/meeting/note), subject, content (Text),
+   886→   886→    contacted_by (FK users.id), contacted_at (DateTime)
+   887→   887→
+   888→   888→Table: tags
+   889→   889→  - id, name (unique), color (String(7)), entity_type (String)
+   890→   890→
+   891→   891→Table: entity_tags (junction table)
+   892→   892→  - id, tag_id (FK), entity_type, entity_id
+   893→   893→
+   894→   894→Table: notes
+   895→   895→  - id, entity_type, entity_id, content (Text), created_by (FK users.id)
+   896→   896→```
+   897→   897→
+   898→   898→### Step 4.2 — CRM Service
+   899→   899→
+   900→   900→**`backend/services/crm_service.py`**:
+   901→   901→- Vendor CRUD + search/filter (by name, gstin, city, tags)
+   902→   902→- Customer CRUD + search/filter
+   903→   903→- Contact history: add, list by entity
+   904→   904→- Tag management: create, assign, remove, list by entity
+   905→   905→- Notes: add, list by entity
+   906→   906→- Vendor performance scoring: calculate from invoice history
+   907→   907→  - `score = (on_time_delivery_pct * 0.4) + (invoice_accuracy_pct * 0.4) + (100 - dispute_rate_pct) * 0.2`
+   908→   908→
+   909→   909→### Step 4.3 — CRM API
+   910→   910→
+   911→   911→**`backend/api/v1/vendors.py`**:
+   912→   912→- Full CRUD: GET (list + search), POST, GET/{id}, PUT/{id}, DELETE/{id}
+   913→   913→- `GET /vendors/{id}/invoices` — vendor's invoice history
+   914→   914→- `GET /vendors/{id}/performance` — performance breakdown
+   915→   915→
+   916→   916→**`backend/api/v1/customers.py`**: Same pattern.
+   917→   917→
+   918→   918→**`backend/api/v1/crm.py`**:
+   919→   919→- `GET/POST /crm/contacts?entity_type=vendor&entity_id={id}`
+   920→   920→- `GET/POST /crm/tags`
+   921→   921→- `POST /crm/tags/{id}/assign` body: `{entity_type, entity_id}`
+   922→   922→- `GET/POST /crm/notes?entity_type=vendor&entity_id={id}`
+   923→   923→
+   924→   924→### Step 4.4 — Streamlit CRM Pages
+   925→   925→
+   926→   926→**`frontend/pages/04_🏢_Vendors.py`**:
+   927→   927→- Search bar + filters (state, verified status, tags)
+   928→   928→- Data table: name, GSTIN, city, performance score (color-coded), invoice count
+   929→   929→- Click → vendor detail: contact info, bank details, invoice history, performance chart, tags, notes, contact timeline
+   930→   930→- Add/Edit vendor form
+   931→   931→
+   932→   932→**`frontend/pages/05_👥_Customers.py`**: Similar pattern.
+   933→   933→
+   934→   934→**`frontend/pages/11_👤_CRM.py`**:
+   935→   935→- Unified CRM view: recent contacts, tags overview, notes feed
+   936→   936→- Filter by entity type + entity
+   937→   937→
+   938→   938→### Verification — Phase 4
+   939→   939→
+   940→   940→```bash
+   941→   941→# 1. Create vendor via API/UI → appears in list
+   942→   942→# 2. Add tags, notes, contact history
+   943→   943→# 3. Vendor performance score calculated from invoice data
+   944→   944→# 4. Search and filter working
+   945→   945→```
+   946→   946→
+   947→   947→---
+   948→   948→
+   949→   949→## PHASE 5 — Purchase Orders + 3-Way Matching
+   950→   950→
+   951→   951→**Subagent Role**: `Matching Engine Developer`
+   952→   952→**Prerequisites**: Phase 2 + Phase 4 complete
+   953→   953→**Outputs**: PO management + automated 3-way matching
+   954→   954→
+   955→   955→### Step 5.1 — PO & Challan Models
+   956→   956→
+   957→   957→Create `backend/models/purchase_order.py` and `backend/models/delivery_challan.py` and `backend/models/matching.py` as defined in PLAN.md section 3 (All Tables).
+   958→   958→
+   959→   959→### Step 5.2 — Matching Service
+   960→   960→
+   961→   961→**`backend/services/matching_service.py`**:
+   962→   962→```python
+   963→   963→# class MatchingService:
+   964→   964→#     TOLERANCE_PERCENT = 2.0  # configurable
+   965→   965→#
+   966→   966→#     async def match_invoice(self, db, invoice_id: str) -> MatchResult:
+   967→   967→#         invoice = await self._fetch_invoice_with_items(db, invoice_id)
+   968→   968→#
+   969→   969→#         # Step 1: Find matching PO (by po_number reference in invoice, or vendor + items)
+   970→   970→#         po = await self._find_matching_po(db, invoice)
+   971→   971→#         if not po:
+   972→   972→#             return MatchResult(status="UNMATCHED", reason="No matching PO found")
+   973→   973→#
+   974→   974→#         # Step 2: Find matching Challan (by PO reference)
+   975→   975→#         challan = await self._find_matching_challan(db, po.id)
+   976→   976→#         if not challan:
+   977→   977→#             return MatchResult(status="PARTIAL_2WAY", ...)
+   978→   978→#
+   979→   979→#         # Step 3: Compare line items across all three
+   980→   980→#         discrepancies = self._compare_line_items(
+   981→   981→#             invoice.line_items, po.line_items, challan.line_items)
+   982→   982→#
+   983→   983→#         # Step 4: Check tolerance
+   984→   984→#         if all(d.within_tolerance for d in discrepancies):
+   985→   985→#             return MatchResult(status="MATCHED", ...)
+   986→   986→#         return MatchResult(status="DISCREPANCY", discrepancies=discrepancies)
+   987→   987→```
+   988→   988→
+   989→   989→### Step 5.3 — LangGraph Matching Workflow
+   990→   990→
+   991→   991→**`backend/workflows/matching_workflow.py`** — Implement the graph from PLAN.md section 4.3.
+   992→   992→
+   993→   993→### Step 5.4 — Matching API
+   994→   994→
+   995→   995→**`backend/api/v1/purchase_orders.py`**: CRUD for POs.
+   996→   996→**`backend/api/v1/matching.py`**:
+   997→   997→- `POST /matching/match/{invoice_id}` — trigger 3-way match
+   998→   998→- `GET /matching/results` — list results
+   999→   999→- `GET /matching/results/{id}` — detail with discrepancies
+  1000→  1000→
+  1001→  1001→### Step 5.5 — Streamlit Matching Page
+  1002→  1002→
+  1003→  1003→**`frontend/pages/07_🔗_Matching.py`**:
+  1004→  1004→- Side-by-side 3-column view: Invoice | PO | Challan
+  1005→  1005→- Line item comparison table with color-coded matches (green=match, yellow=tolerance, red=mismatch)
+  1006→  1006→- One-click match confirmation or dispute
+  1007→  1007→
+  1008→  1008→### Verification — Phase 5
+  1009→  1009→
+  1010→  1010→```bash
+  1011→  1011→# 1. Create PO → Create Challan → Upload Invoice
+  1012→  1012→# 2. Run match → returns MATCHED or DISCREPANCY with details
+  1013→  1013→# 3. Streamlit shows side-by-side comparison
+  1014→  1014→```
+  1015→  1015→
+  1016→  1016→---
+  1017→  1017→
+  1018→  1018→## PHASE 6 — GST Compliance & Tax
+  1019→  1019→
+  1020→  1020→**Subagent Role**: `GST Compliance Developer`
+  1021→  1021→**Prerequisites**: Phase 2 complete
+  1022→  1022→**Outputs**: GSTR-1 generation, GSTR-2B reconciliation, ITC mismatch detection
+  1023→  1023→
+  1024→  1024→### Step 6.1–6.4 — Models, Service, API, UI
+  1025→  1025→
+  1026→  1026→Follow PLAN.md Phase 6 tasks exactly.
+  1027→  1027→
+  1028→  1028→**Key Implementation Details for `backend/services/gst_service.py`**:
+  1029→  1029→```python
+  1030→  1030→# class GSTService:
+  1031→  1031→#     async def generate_gstr1_summary(self, db, period: str) -> GSTR1Summary:
+  1032→  1032→#         """Generate GSTR-1 from sales invoices for the period (e.g., '2026-06')."""
+  1033→  1033→#         # Query invoices where invoice_date falls in period
+  1034→  1034→#         # Group by: B2B (>2.5L), B2C Large, B2C Small, Credit/Debit Notes
+  1035→  1035→#         # Compute: taxable_value, cgst, sgst, igst per rate slab
+  1036→  1036→#
+  1037→  1037→#     async def reconcile_gstr2b(self, db, period: str, portal_data: list[dict]) -> list[ReconResult]:
+  1038→  1038→#         """Match portal GSTR-2B entries against booked purchase invoices."""
+  1039→  1039→#         # For each portal entry:
+  1040→  1040→#         #   Find matching invoice by: vendor_gstin + invoice_number + invoice_date
+  1041→  1041→#         #   Compare: total_amount, tax amounts
+  1042→  1042→#         #   Flag mismatches: MATCHED, AMOUNT_MISMATCH, MISSING_IN_BOOKS, MISSING_IN_PORTAL
+  1043→  1043→#
+  1044→  1044→#     async def detect_itc_mismatches(self, db, period: str) -> list[ITCMismatch]:
+  1045→  1045→#         """Find ITC claimed but not in GSTR-2B."""
+  1046→  1046→```
+  1047→  1047→
+  1048→  1048→**`frontend/pages/08_💰_GST_Compliance.py`**:
+  1049→  1049→- Period selector (month/year dropdown)
+  1050→  1050→- GSTR-1 Summary cards (B2B, B2C, total tax)
+  1051→  1051→- GSTR-2B reconciliation table (with mismatch highlighting)
+  1052→  1052→- ITC mismatch report
+  1053→  1053→- Export buttons (CSV/Excel for filing)
+  1054→  1054→
+  1055→  1055→---
+  1056→  1056→
+  1057→  1057→## PHASE 7 — Import/Export + Master Data + Bulk Ops
+  1058→  1058→
+  1059→  1059→**Subagent Role**: `Data Management Developer`
+  1060→  1060→**Prerequisites**: Phase 1 + Phase 4 complete
+  1061→  1061→**Outputs**: Excel/CSV import-export, GL codes, approval hierarchies, custom rules
+  1062→  1062→
+  1063→  1063→### Step 7.1 — Import/Export Service
+  1064→  1064→
+  1065→  1065→**`backend/services/import_export_service.py`**:
+  1066→  1066→```python
+  1067→  1067→# class ImportExportService:
+  1068→  1068→#     SUPPORTED_ENTITIES = ["invoices", "vendors", "customers"]
+  1069→  1069→#
+  1070→  1070→#     async def import_file(self, db, file_content: bytes, file_type: str,
+  1071→  1071→#                           entity_type: str, column_mapping: dict) -> ImportResult:
+  1072→  1072→#         df = pd.read_excel(BytesIO(file_content)) if file_type == "xlsx" else pd.read_csv(...)
+  1073→  1073→#         df = df.rename(columns=column_mapping)
+  1074→  1074→#         # Validate required columns
+  1075→  1075→#         # Bulk insert with conflict handling
+  1076→  1076→#         return ImportResult(total=len(df), success=n, errors=errors)
+  1077→  1077→#
+  1078→  1078→#     async def export_data(self, db, entity_type: str, filters: dict,
+  1079→  1079→#                           format: str = "xlsx") -> bytes:
+  1080→  1080→#         # Query data with filters
+  1081→  1081→#         # Convert to DataFrame
+  1082→  1082→#         # Export to xlsx (openpyxl) or csv
+  1083→  1083→#         return file_bytes
+  1084→  1084→#
+  1085→  1085→#     async def preview_import(self, file_content, file_type) -> PreviewResult:
+  1086→  1086→#         # Return first 10 rows + column names for mapping UI
+  1087→  1087→```
+  1088→  1088→
+  1089→  1089→### Step 7.2–7.4 — Master Data Models, API, UI
+  1090→  1090→
+  1091→  1091→Follow PLAN.md Phase 7 exactly. Key models in `backend/models/master_data.py`:
+  1092→  1092→- `GLCode(code, description, category, parent_id, is_active)`
+  1093→  1093→- `ApprovalHierarchy(role, min_amount, max_amount, step_order)`
+  1094→  1094→- `CustomRule(name, trigger_event, condition_json, action_json, priority, is_active)`
+  1095→  1095→- `TaxRate(name, rate, effective_from, effective_to)`
+  1096→  1096→- `CostCenter(code, name, department, is_active)`
+  1097→  1097→
+  1098→  1098→---
+  1099→  1099→
+  1100→  1100→## PHASE 8 — Analytics + AI Copilot
+  1101→  1101→
+  1102→  1102→**Subagent Role**: `Analytics & AI Developer`
+  1103→  1103→**Prerequisites**: Phase 2 + Phase 4 complete (needs invoice + vendor data)
+  1104→  1104→**Outputs**: Analytics dashboard + natural language AI copilot
+  1105→  1105→
+  1106→  1106→### Step 8.1–8.3 — Analytics
+  1107→  1107→
+  1108→  1108→**`backend/services/analytics_service.py`**:
+  1109→  1109→```python
+  1110→  1110→# Key queries (all use SQLAlchemy async):
+  1111→  1111→#
+  1112→  1112→# spend_trends(period: monthly/quarterly/yearly, date_range) -> list[{period, total_amount}]
+  1113→  1113→#     SELECT date_trunc('month', invoice_date), SUM(total_amount) GROUP BY 1 ORDER BY 1
+  1114→  1114→#
+  1115→  1115→# vendor_analysis(top_n, date_range) -> list[{vendor, total, invoice_count, avg_amount}]
+  1116→  1116→#     SELECT vendor_name, SUM(total_amount), COUNT(*) GROUP BY vendor_name ORDER BY SUM DESC
+  1117→  1117→#
+  1118→  1118→# automation_roi() -> {docs_processed, manual_time_saved_hours, error_reduction_pct, cost_saved}
+  1119→  1119→#     Based on: processing_queue completion rates, avg processing time
+  1120→  1120→#
+  1121→  1121→# processing_metrics() -> {total, by_status, by_type, avg_processing_time, success_rate}
+  1122→  1122→#
+  1123→  1123→# aging_analysis(as_of_date) -> list[{bucket: "0-30 days", count, total_amount}]
+  1124→  1124→#     Bucket invoices by (as_of_date - due_date) into 0-30, 31-60, 61-90, 90+ days
+  1125→  1125→```
+  1126→  1126→
+  1127→  1127→**Streamlit Charts** — use Plotly:
+  1128→  1128→- Line chart: spend trends over time
+  1129→  1129→- Bar chart: top 10 vendors by spend
+  1130→  1130→- Pie chart: document type distribution
+  1131→  1131→- Funnel: processing pipeline stages
+  1132→  1132→- KPI metric cards at top
+  1133→  1133→
+  1134→  1134→### Step 8.4–8.6 — AI Copilot
+  1135→  1135→
+  1136→  1136→**`backend/services/copilot_service.py`**:
+  1137→  1137→```python
+  1138→  1138→# Use LangChain Agent with tools:
+  1139→  1139→#
+  1140→  1140→# tools = [
+  1141→  1141→#     Tool("query_invoices", description="Search invoices by vendor, date, amount, status"),
+  1142→  1142→#     Tool("query_vendors", description="Search vendors by name, gstin, city"),
+  1143→  1143→#     Tool("get_analytics", description="Get spend trends, vendor analysis, ROI metrics"),
+  1144→  1144→#     Tool("get_document_status", description="Check processing status of a document"),
+  1145→  1145→# ]
+  1146→  1146→#
+  1147→  1147→# Each tool calls the corresponding service and returns structured data.
+  1148→  1148→# Agent has conversation memory (per user, stored in DB or Redis).
+  1149→  1149→#
+  1150→  1150→# Example queries the copilot should handle:
+  1151→  1151→# - "Show me top 5 vendors by spend this quarter"
+  1152→  1152→# - "How many invoices are pending approval?"
+  1153→  1153→# - "What's the total GST paid in June 2026?"
+  1154→  1154→# - "Find all invoices from Vendor X over 50,000"
+  1155→  1155→```
+  1156→  1156→
+  1157→  1157→**`frontend/pages/10_🤖_AI_Copilot.py`**:
+  1158→  1158→- Chat interface using `st.chat_message` + `st.chat_input`
+  1159→  1159→- Display structured responses (tables, charts) inline in chat
+  1160→  1160→- Suggested queries as clickable pills
+  1161→  1161→- Conversation history in sidebar
+  1162→  1162→
+  1163→  1163→---
+  1164→  1164→
+  1165→  1165→## PHASE 9 — Audit Trail + User Management + Email Ingestion
+  1166→  1166→
+  1167→  1167→**Subagent Role**: `Platform Operations Developer`
+  1168→  1168→**Prerequisites**: Phase 1 complete
+  1169→  1169→**Outputs**: Audit logs, user CRUD, email ingestion, reports
+  1170→  1170→
+  1171→  1171→### Step 9.1 — Audit System
+  1172→  1172→
+  1173→  1173→**`backend/models/audit.py`**:
+  1174→  1174→```
+  1175→  1175→Table: audit_logs
+  1176→  1176→  - id (UUID, PK), entity_type (String), entity_id (UUID),
+  1177→  1177→    action (String: CREATE/UPDATE/DELETE),
+  1178→  1178→    old_value_json (JSON, nullable), new_value_json (JSON, nullable),
+  1179→  1179→    user_id (FK users.id), ip_address (String(45)),
+  1180→  1180→    user_agent (String(500), nullable),
+  1181→  1181→    created_at (DateTime, server_default now())
+  1182→  1182→```
+  1183→  1183→
+  1184→  1184→**`backend/services/audit_service.py`**:
+  1185→  1185→```python
+  1186→  1186→# class AuditService:
+  1187→  1187→#     async def log(self, db, entity_type, entity_id, action, old_value, new_value, user_id, ip):
+  1188→  1188→#         ...
+  1189→  1189→#
+  1190→  1190→# Auto-capture via SQLAlchemy event listeners:
+  1191→  1191→# @event.listens_for(Session, "after_flush")
+  1192→  1192→# def after_flush(session, flush_context):
+  1193→  1193→#     for obj in session.new:      # CREATE
+  1194→  1194→#     for obj in session.dirty:    # UPDATE (diff old vs new)
+  1195→  1195→#     for obj in session.deleted:  # DELETE
+  1196→  1196→```
+  1197→  1197→
+  1198→  1198→### Step 9.2 — User Management
+  1199→  1199→
+  1200→  1200→**`backend/api/v1/users.py`**:
+  1201→  1201→- `GET /users` — list all (admin only)
+  1202→  1202→- `GET /users/{id}` — detail
+  1203→  1203→- `PUT /users/{id}/role` — change role (admin only)
+  1204→  1204→- `POST /users/{id}/deactivate` — deactivate (admin only)
+  1205→  1205→- `POST /users/{id}/activate` — reactivate (admin only)
+  1206→  1206→- `POST /users/{id}/reset-password` — password reset (admin only)
+  1207→  1207→
+  1208→  1208→### Step 9.3 — Email Ingestion
+  1209→  1209→
+  1210→  1210→**`backend/services/email_service.py`**:
+  1211→  1211→```python
+  1212→  1212→# class EmailIngestionService:
+  1213→  1213→#     async def poll_inbox(self):
+  1214→  1214→#         """Connect to IMAP, fetch unread emails with attachments, process each."""
+  1215→  1215→#         import imaplib, email
+  1216→  1216→#         mail = imaplib.IMAP4_SSL(settings.IMAP_HOST, settings.IMAP_PORT)
+  1217→  1217→#         mail.login(settings.IMAP_USER, settings.IMAP_PASSWORD)
+  1218→  1218→#         mail.select("INBOX")
+  1219→  1219→#         _, messages = mail.search(None, "UNSEEN")
+  1220→  1220→#
+  1221→  1221→#         for msg_id in messages[0].split():
+  1222→  1222→#             _, msg_data = mail.fetch(msg_id, "(RFC822)")
+  1223→  1223→#             msg = email.message_from_bytes(msg_data[0][1])
+  1224→  1224→#             for part in msg.walk():
+  1225→  1225→#                 if part.get_content_disposition() == "attachment":
+  1226→  1226→#                     filename = part.get_filename()
+  1227→  1227→#                     if filename and filename.lower().endswith(('.pdf', '.png', '.jpg', '.jpeg')):
+  1228→  1228→#                         # Save file → create document → dispatch process_document task
+  1229→  1229→#                         ...
+  1230→  1230→#         mail.logout()
+  1231→  1231→```
+  1232→  1232→
+  1233→  1233→**`backend/tasks/email_tasks.py`**:
+  1234→  1234→```python
+  1235→  1235→# @celery_app.task
+  1236→  1236→# def poll_email_inbox():
+  1237→  1237→#     """Celery periodic task to poll email inbox."""
+  1238→  1238→#     service = EmailIngestionService()
+  1239→  1239→#     asyncio.run(service.poll_inbox())
+  1240→  1240→#
+  1241→  1241→# # Configure Celery beat schedule:
+  1242→  1242→# celery_app.conf.beat_schedule = {
+  1243→  1243→#     "poll-email-every-5-minutes": {
+  1244→  1244→#         "task": "backend.tasks.email_tasks.poll_email_inbox",
+  1245→  1245→#         "schedule": 300.0,
+  1246→  1246→#     }
+  1247→  1247→# }
+  1248→  1248→```
+  1249→  1249→
+  1250→  1250→### Step 9.4 — Streamlit Audit & User Pages
+  1251→  1251→
+  1252→  1252→**`frontend/pages/13_📋_Audit_Trail.py`**:
+  1253→  1253→- Search by entity type, action, user, date range
+  1254→  1254→- Table: timestamp, user, action, entity type, entity ID (clickable link)
+  1255→  1255→- Expandable row: show old_value vs new_value diff
+  1256→  1256→
+  1257→  1257→**`frontend/pages/14_👥_User_Management.py`** (admin only):
+  1258→  1258→- User table: name, email, role (dropdown), status, last login
+  1259→  1259→- Add user button → form
+  1260→  1260→- Deactivate/activate toggle
+  1261→  1261→
+  1262→  1262→### Step 9.5 — Reports
+  1263→  1263→
+  1264→  1264→**`backend/api/v1/reports.py`**:
+  1265→  1265→- `GET /reports/aging` — invoice aging report
+  1266→  1266→- `GET /reports/vendor-statement/{vendor_id}` — vendor statement
+  1267→  1267→- `GET /reports/tax-summary?period=2026-06` — tax summary
+  1268→  1268→- `GET /reports/processing-summary` — document processing report
+  1269→  1269→- All support `?format=json|csv|pdf` query param.
+  1270→  1270→
+  1271→  1271→---
+  1272→  1272→
+  1273→  1273→## PHASE 10 — Free-Tier Deployment & Polish
+  1274→  1274→
+  1275→  1275→**Subagent Role**: `DevOps & Polish Engineer`
+  1276→  1276→**Prerequisites**: All prior phases complete
+  1277→  1277→**Outputs**: Deployed, polished application
+  1278→  1278→
+  1279→  1279→### Step 10.1 — Supabase Setup (Manual, document the steps)
+  1280→  1280→
+  1281→  1281→Create a file `docs/deployment_guide.md` with:
+  1282→  1282→1. Go to supabase.com → New Project → select region
+  1283→  1283→2. Copy project URL, anon key, service role key
+  1284→  1284→3. Go to Database Settings → Connection Pooling → copy pooler URL (port 6543)
+  1285→  1285→4. Create storage bucket: `documents` (public or private based on need)
+  1286→  1286→5. Set RLS policies if needed
+  1287→  1287→
+  1288→  1288→### Step 10.2 — Upstash Setup (Manual, document)
+  1289→  1289→
+  1290→  1290→1. Go to upstash.com → Create Redis Database
+  1291→  1291→2. Copy `rediss://` connection string
+  1292→  1292→3. Set as `REDIS_URL` in env
+  1293→  1293→
+  1294→  1294→### Step 10.3 — Render Deployment
+  1295→  1295→
+  1296→  1296→**`Procfile`**:
+  1297→  1297→```
+  1298→  1298→web: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+  1299→  1299→```
+  1300→  1300→
+  1301→  1301→**`render.yaml`**:
+  1302→  1302→```yaml
+  1303→  1303→services:
+  1304→  1304→  - type: web
+  1305→  1305→    name: autofinocs-api
+  1306→  1306→    env: python
+  1307→  1307→    plan: free
+  1308→  1308→    buildCommand: pip install -r requirements/api.txt
+  1309→  1309→    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+  1310→  1310→    envVars:
+  1311→  1311→      - key: DATABASE_URL
+  1312→  1312→        sync: false
+  1313→  1313→      - key: REDIS_URL
+  1314→  1314→        sync: false
+  1315→  1315→      - key: JWT_SECRET_KEY
+  1316→  1316→        generateValue: true
+  1317→  1317→      - key: SUPABASE_URL
+  1318→  1318→        sync: false
+  1319→  1319→      - key: SUPABASE_SERVICE_ROLE_KEY
+  1320→  1320→        sync: false
+  1321→  1321→      - key: PYTHON_VERSION
+  1322→  1322→        value: "3.11.9"
+  1323→  1323→    healthCheckPath: /health
+  1324→  1324→```
+  1325→  1325→
+  1326→  1326→### Step 10.4 — Streamlit Cloud Deployment
+  1327→  1327→
+  1328→  1328→**`.streamlit/config.toml`**:
+  1329→  1329→```toml
+  1330→  1330→[server]
+  1331→  1331→headless = true
+  1332→  1332→port = 8501
+  1333→  1333→
+  1334→  1334→[theme]
+  1335→  1335→primaryColor = "#6366f1"
+  1336→  1336→backgroundColor = "#0f172a"
+  1337→  1337→secondaryBackgroundColor = "#1e293b"
+  1338→  1338→textColor = "#e2e8f0"
+  1339→  1339→font = "sans serif"
+  1340→  1340→
+  1341→  1341→[browser]
+  1342→  1342→gatherUsageStats = false
+  1343→  1343→```
+  1344→  1344→
+  1345→  1345→Steps:
+  1346→  1346→1. Push to GitHub
+  1347→  1347→2. Go to share.streamlit.io → New App → select repo, branch, `frontend/app.py`
+  1348→  1348→3. Add secrets in Streamlit Cloud dashboard (API_BASE_URL = Render URL)
+  1349→  1349→
+  1350→  1350→### Step 10.5 — Frontend Polish
+  1351→  1351→
+  1352→  1352→Apply to `frontend/static/styles/main.css`:
+  1353→  1353→- Dark theme with `#0f172a` background, `#1e293b` cards
+  1354→  1354→- Accent: indigo `#6366f1`
+  1355→  1355→- Consistent spacing (1rem, 1.5rem)
+  1356→  1356→- Rounded corners (0.75rem)
+  1357→  1357→- Subtle box-shadows on cards
+  1358→  1358→- Loading skeletons / spinners
+  1359→  1359→- Toast notifications for success/error
+  1360→  1360→- Empty state illustrations
+  1361→  1361→- Responsive grid layout
+  1362→  1362→
+  1363→  1363→### Step 10.6 — Dashboard Homepage
+  1364→  1364→
+  1365→  1365→**`frontend/pages/01_📊_Dashboard.py`**:
+  1366→  1366→- 4 KPI metric cards in a row: Total Invoices, Pending Approvals, Processing Rate %, Automation Savings ₹
+  1367→  1367→- Spend trend chart (Plotly line, last 12 months)
+  1368→  1368→- Recent activity feed (last 10 actions from audit log)
+  1369→  1369→- Quick action buttons: Upload Document, View Pending, Run Report
+  1370→  1370→- Processing queue status (pie chart by status)
+  1371→  1371→- Top 5 vendors by spend (horizontal bar)
+  1372→  1372→
+  1373→  1373→### Verification — Phase 10
+  1374→  1374→
+  1375→  1375→```
+  1376→  1376→1. Backend accessible at https://autofinocs-api.onrender.com/health
+  1377→  1377→2. Swagger docs at https://autofinocs-api.onrender.com/docs
+  1378→  1378→3. Frontend at https://autofinocs.streamlit.app
+  1379→  1379→4. Login works end-to-end
+  1380→  1380→5. Upload document → pipeline runs → results visible
+  1381→  1381→6. All pages load without errors
+  1382→  1382→7. Mobile browser shows limited view + APK banner
+  1383→  1383→```
+  1384→  1384→
+  1385→  1385→---
+  1386→  1386→
+  1387→  1387→## Subagent Assignment Matrix
+  1388→  1388→
+  1389→  1389→| Phase | Can Run in Parallel With | Estimated Effort | Subagent Skills Needed |
+  1390→  1390→|---|---|---|---|
+  1391→  1391→| Phase 1 | — (must be first) | 3 days | FastAPI, SQLAlchemy, Streamlit, JWT |
+  1392→  1392→| Phase 2 | — (needs Phase 1) | 4 days | PaddleOCR, LangChain, LangGraph, Celery |
+  1393→  1393→| Phase 3 | — (needs Phase 2) | 3 days | LangGraph, business logic, fraud detection |
+  1394→  1394→| Phase 4 | Phase 2, Phase 3 | 3 days | CRUD, SQLAlchemy, Streamlit |
+  1395→  1395→| Phase 5 | Phase 4 | 3 days | Matching algorithms, LangGraph |
+  1396→  1396→| Phase 6 | Phase 2 | 3 days | GST domain knowledge, pandas |
+  1397→  1397→| Phase 7 | Phase 4 | 3 days | pandas, openpyxl, import/export |
+  1398→  1398→| Phase 8 | Phase 2 + 4 | 4 days | Analytics SQL, LangChain agents, Plotly |
+  1399→  1399→| Phase 9 | Phase 1 | 3 days | SQLAlchemy events, IMAP, admin features |
+  1400→  1400→| Phase 10 | All phases done | 4 days | DevOps, CSS, Render, Supabase |
+  1401→  1401→
+  1402→  1402→### Parallel Execution Strategy
+  1403→  1403→
+  1404→  1404→```
+  1405→  1405→Timeline:
+  1406→  1406→Day 1-3:   [Phase 1: Foundation] ────────────────────────────►
+  1407→  1407→Day 4-7:   [Phase 2: Doc Processing] ────────────────────────►
+  1408→  1408→Day 4-6:   [Phase 4: CRM] ──────────────► (parallel with Phase 2)
+  1409→  1409→Day 4-6:   [Phase 9: Audit+Users] ──────► (parallel with Phase 2)
+  1410→  1410→Day 7-9:   [Phase 6: GST] ──────────────► (parallel with Phase 3)
+  1411→  1411→Day 8-10:  [Phase 3: Fraud+Approval] ───►
+  1412→  1412→Day 8-10:  [Phase 7: Import/Export] ────► (parallel with Phase 3)
+  1413→  1413→Day 11-13: [Phase 5: 3-Way Match] ──────►
+  1414→  1414→Day 11-14: [Phase 8: Analytics+Copilot] ►
+  1415→  1415→Day 15-18: [Phase 10: Deploy+Polish] ───►
+  1416→  1416→
+  1417→  1417→Optimized total: ~18 days with parallel subagents (vs 33 sequential)
+  1418→  1418→```
+  1419→  1419→
+  1420→  1420→---
+  1421→  1421→
+  1422→  1422→## Error Handling Protocol for All Subagents
+  1423→  1423→
+  1424→  1424→1. **If a dependency is missing**: Install it and add to the correct `requirements/*.txt` file.
+  1425→  1425→2. **If a model field is needed from another phase**: Add it with `nullable=True` and a TODO comment.
+  1426→  1426→3. **If an API endpoint conflicts**: Prefix with the module name (e.g., `/crm/contacts` not `/contacts`).
+  1427→  1427→4. **If Supabase connection fails**: Check pooler URL uses port `6543` and `asyncpg` driver.
+  1428→  1428→5. **If Redis/Upstash fails**: Verify `rediss://` (TLS) and the URL is correct.
+  1429→  1429→6. **If tests fail on CI**: Ensure test DB uses SQLite in-memory or test-specific Supabase project.
+  1430→  1430→7. **Always run `alembic revision --autogenerate`** after adding/modifying models.
+  1431→  1431→8. **Always update `backend/api/router.py`** when adding new route modules.
+  1432→  1432→9. **Always update `frontend/api_client.py`** when adding new API endpoints used by the frontend.
+  1433→  1433→

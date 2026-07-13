@@ -1,0 +1,266 @@
+'use client'
+
+import { useState } from 'react'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { useVendorsQuery, useCreateVendorMutation, formatCurrency } from '@/lib/queries'
+import {
+  Building2,
+  Search,
+  Plus,
+  Mail,
+  Phone,
+  MapPin,
+  FileText,
+  IndianRupee,
+} from 'lucide-react'
+import { toast } from 'sonner'
+
+export function VendorsSection() {
+  const [search, setSearch] = useState('')
+  const [showCreate, setShowCreate] = useState(false)
+  const { data, isLoading } = useVendorsQuery(search || undefined)
+  const vendors = data?.items ?? []
+
+  const totalSpend = vendors.reduce((a, v) => a + (v.totalSpend ?? 0), 0)
+  const totalDocs = vendors.reduce((a, v) => a + (v._count?.documents ?? 0), 0)
+
+  return (
+    <div className="space-y-4">
+      {/* Summary */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Building2 className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xl font-bold">{vendors.length}</div>
+              <div className="text-xs text-muted-foreground">Vendors / Customers</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-300">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xl font-bold">{totalDocs}</div>
+              <div className="text-xs text-muted-foreground">Linked documents</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300">
+              <IndianRupee className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xl font-bold">{formatCurrency(totalSpend)}</div>
+              <div className="text-xs text-muted-foreground">Total spend tracked</div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Toolbar */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search vendors by name, GSTIN, or email…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="mr-1.5 h-4 w-4" /> Add vendor
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Vendor grid */}
+      {isLoading ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-44 rounded-lg" />
+          ))}
+        </div>
+      ) : vendors.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+            <div className="rounded-full bg-muted p-4">
+              <Building2 className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-sm font-medium">No vendors yet</div>
+              <div className="text-xs text-muted-foreground">
+                Vendors are created automatically when you upload invoices, or add one manually
+              </div>
+            </div>
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              <Plus className="mr-1.5 h-4 w-4" /> Add your first vendor
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {vendors.map((v) => (
+            <Card key={v.id} className="flex flex-col">
+              <CardContent className="flex flex-1 flex-col p-4">
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold" title={v.name}>{v.name}</div>
+                    {v.gstin && (
+                      <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                        GSTIN: {v.gstin}
+                      </div>
+                    )}
+                  </div>
+                  {v.category && (
+                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {v.category}
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                  {v.email && (
+                    <div className="flex items-center gap-1.5">
+                      <Mail className="h-3 w-3" /> <span className="truncate">{v.email}</span>
+                    </div>
+                  )}
+                  {v.phone && (
+                    <div className="flex items-center gap-1.5">
+                      <Phone className="h-3 w-3" /> <span>{v.phone}</span>
+                    </div>
+                  )}
+                  {v.address && (
+                    <div className="flex items-start gap-1.5">
+                      <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
+                      <span className="line-clamp-2">{v.address}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-auto flex items-center justify-between border-t border-border pt-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Documents</div>
+                    <div className="text-sm font-bold">{v._count?.documents ?? 0}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Total spend</div>
+                    <div className="text-sm font-bold">{formatCurrency(v.totalSpend ?? 0)}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <CreateVendorDialog open={showCreate} onOpenChange={setShowCreate} />
+    </div>
+  )
+}
+
+function CreateVendorDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const create = useCreateVendorMutation()
+  const [form, setForm] = useState({
+    name: '', gstin: '', pan: '', email: '', phone: '', address: '', category: 'supplier',
+  })
+
+  const submit = () => {
+    if (!form.name) {
+      toast.error('Name is required')
+      return
+    }
+    create.mutate(form, {
+      onSuccess: () => {
+        toast.success('Vendor created')
+        onOpenChange(false)
+        setForm({ name: '', gstin: '', pan: '', email: '', phone: '', address: '', category: 'supplier' })
+      },
+      onError: (e) => toast.error('Create failed: ' + e.message),
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Vendor / Customer</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-3 py-2">
+          <div>
+            <Label>Name *</Label>
+            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Acme Pvt Ltd" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>GSTIN</Label>
+              <Input value={form.gstin} onChange={(e) => setForm({ ...form, gstin: e.target.value })} placeholder="27AABCT1332L1ZJ" className="font-mono text-xs" />
+            </div>
+            <div>
+              <Label>PAN</Label>
+              <Input value={form.pan} onChange={(e) => setForm({ ...form, pan: e.target.value })} placeholder="AABCT1332L" className="font-mono text-xs" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Email</Label>
+              <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="billing@acme.in" />
+            </div>
+            <div>
+              <Label>Phone</Label>
+              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 22 4567 8901" />
+            </div>
+          </div>
+          <div>
+            <Label>Address</Label>
+            <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="14, IT Park, Pune 411057" />
+          </div>
+          <div>
+            <Label>Category</Label>
+            <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="supplier">Supplier</SelectItem>
+                <SelectItem value="customer">Customer</SelectItem>
+                <SelectItem value="both">Both</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={submit} disabled={create.isPending}>
+            {create.isPending ? 'Creating…' : 'Create vendor'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
