@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="600" height="800">
+  <rect width="600" height="800" fill="#ffffff"/>
+  <rect x="0" y="0" width="600" height="80" fill="#0f766e"/>
+  <text x="40" y="45" font-family="Helvetica" font-size="22" font-weight="bold" fill="#ffffff">TechNova Solutions Pvt Ltd</text>
+  <text x="40" y="68" font-family="Helvetica" font-size="11" fill="#ccfbf1">GSTIN: 27AABCT1332L1ZJ · Pune, MH</text>
+  <text x="420" y="45" font-family="Helvetica" font-size="20" font-weight="bold" fill="#ffffff">TAX INVOICE</text>
+
+  <text x="40" y="120" font-family="Helvetica" font-size="10" fill="#64748b">BILL TO</text>
+  <text x="40" y="138" font-family="Helvetica" font-size="13" font-weight="bold" fill="#0f172a">AutoFinDocs India Pvt Ltd</text>
+  <text x="40" y="155" font-family="Helvetica" font-size="10" fill="#64748b">5th Floor, Trade Tower, BKC, Mumbai</text>
+
+  <text x="400" y="120" font-family="Helvetica" font-size="10" fill="#64748b">INVOICE NO</text>
+  <text x="400" y="138" font-family="Helvetica" font-size="13" font-weight="bold" fill="#0f172a">TN-2024-0451</text>
+  <text x="400" y="160" font-family="Helvetica" font-size="10" fill="#64748b">Date: 12-Nov-2024</text>
+  <text x="400" y="175" font-family="Helvetica" font-size="10" fill="#64748b">Due: 26-Nov-2024</text>
+
+  <line x1="40" y1="200" x2="560" y2="200" stroke="#e2e8f0" stroke-width="1"/>
+
+  <text x="40" y="225" font-family="Helvetica" font-size="10" fill="#64748b" font-weight="bold">#</text>
+  <text x="80" y="225" font-family="Helvetica" font-size="10" fill="#64748b" font-weight="bold">DESCRIPTION</text>
+  <text x="360" y="225" font-family="Helvetica" font-size="10" fill="#64748b" font-weight="bold">HSN</text>
+  <text x="430" y="225" font-family="Helvetica" font-size="10" fill="#64748b" font-weight="bold">QTY</text>
+  <text x="480" y="225" font-family="Helvetica" font-size="10" fill="#64748b" font-weight="bold">RATE</text>
+  <text x="530" y="225" font-family="Helvetica" font-size="10" fill="#64748b" font-weight="bold">AMOUNT</text>
+
+  <line x1="40" y1="235" x2="560" y2="235" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="40" y="255" font-family="Helvetica" font-size="11" fill="#0f172a">1</text>
+  <text x="80" y="255" font-family="Helvetica" font-size="11" fill="#0f172a">React Dev License</text>
+  <text x="360" y="255" font-family="Helvetica" font-size="11" fill="#0f172a">998314</text>
+  <text x="430" y="255" font-family="Helvetica" font-size="11" fill="#0f172a">5</text>
+  <text x="480" y="255" font-family="Helvetica" font-size="11" fill="#0f172a">12,000</text>
+  <text x="530" y="255" font-family="Helvetica" font-size="11" fill="#0f172a" font-weight="bold">60,000</text>
+
+  <text x="40" y="285" font-family="Helvetica" font-size="11" fill="#0f172a">2</text>
+  <text x="80" y="285" font-family="Helvetica" font-size="11" fill="#0f172a">Premium Support</text>
+  <text x="360" y="285" font-family="Helvetica" font-size="11" fill="#0f172a">998314</text>
+  <text x="430" y="285" font-family="Helvetica" font-size="11" fill="#0f172a">1</text>
+  <text x="480" y="285" font-family="Helvetica" font-size="11" fill="#0f172a">18,000</text>
+  <text x="530" y="285" font-family="Helvetica" font-size="11" fill="#0f172a" font-weight="bold">18,000</text>
+
+  <line x1="40" y1="320" x2="560" y2="320" stroke="#e2e8f0" stroke-width="1"/>
+
+  <text x="380" y="345" font-family="Helvetica" font-size="11" fill="#64748b">Subtotal</text>
+  <text x="530" y="345" font-family="Helvetica" font-size="11" fill="#0f172a">78,000</text>
+  <text x="380" y="370" font-family="Helvetica" font-size="11" fill="#64748b">CGST 9%</text>
+  <text x="530" y="370" font-family="Helvetica" font-size="11" fill="#0f172a">7,020</text>
+  <text x="380" y="395" font-family="Helvetica" font-size="11" fill="#64748b">SGST 9%</text>
+  <text x="530" y="395" font-family="Helvetica" font-size="11" fill="#0f172a">7,020</text>
+
+  <rect x="370" y="410" width="200" height="36" fill="#0f766e"/>
+  <text x="390" y="433" font-family="Helvetica" font-size="13" fill="#ffffff" font-weight="bold">GRAND TOTAL</text>
+  <text x="540" y="433" font-family="Helvetica" font-size="14" fill="#ffffff" font-weight="bold">₹92,040</text>
+
+  <text x="40" y="500" font-family="Helvetica" font-size="10" fill="#64748b">PAYMENT TERMS</text>
+  <text x="40" y="518" font-family="Helvetica" font-size="11" fill="#0f172a">Net 14 days · Bank Transfer · HDFC Bank · A/C: 50200012345678</text>
+  <text x="40" y="538" font-family="Helvetica" font-size="11" fill="#0f172a">IFSC: HDFC0000123 · Branch: Hinjewadi</text>
+
+  <text x="40" y="580" font-family="Helvetica" font-size="10" fill="#64748b">DECLARATION</text>
+  <text x="40" y="598" font-family="Helvetica" font-size="10" fill="#475569">This is a computer-generated invoice and does not require a physical signature.</text>
+
+  <rect x="40" y="640" width="520" height="100" fill="#f0fdfa" rx="6"/>
+  <text x="60" y="665" font-family="Helvetica" font-size="10" fill="#0f766e" font-weight="bold">THANK YOU FOR YOUR BUSINESS</text>
+  <text x="60" y="685" font-family="Helvetica" font-size="9" fill="#475569">For queries: accounts@technova.in · +91 22 4567 8901</text>
+  <text x="60" y="705" font-family="Helvetica" font-size="9" fill="#475569">TechNova Solutions Pvt Ltd · CIN U72200MH2010PTC133245</text>
+</svg>

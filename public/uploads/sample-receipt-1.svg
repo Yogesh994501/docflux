@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 600" width="360" height="600">
+  <rect width="360" height="600" fill="#ffffff"/>
+  <rect x="0" y="0" width="360" height="60" fill="#0ea5e9"/>
+  <text x="20" y="32" font-family="Helvetica" font-size="16" font-weight="bold" fill="#ffffff">BLUEPEAK</text>
+  <text x="20" y="50" font-family="Helvetica" font-size="9" fill="#bae6fd">OFFICE SUPPLIES</text>
+  <text x="340" y="32" font-family="Helvetica" font-size="9" fill="#bae6fd" text-anchor="end">MG Road, Bengaluru 560001</text>
+  <text x="340" y="50" font-family="Helvetica" font-size="9" fill="#bae6fd" text-anchor="end">080-2345-6789</text>
+
+  <text x="20" y="90" font-family="Helvetica" font-size="11" fill="#64748b">RECEIPT #</text>
+  <text x="20" y="108" font-family="Helvetica" font-size="13" font-weight="bold" fill="#0f172a">R-99213</text>
+  <text x="340" y="90" font-family="Helvetica" font-size="11" fill="#64748b" text-anchor="end">DATE</text>
+  <text x="340" y="108" font-family="Helvetica" font-size="13" font-weight="bold" fill="#0f172a" text-anchor="end">18-Nov-2024</text>
+
+  <line x1="20" y1="125" x2="340" y2="125" stroke="#e2e8f0" stroke-dasharray="2,2"/>
+
+  <text x="20" y="155" font-family="Helvetica" font-size="9" fill="#64748b">ITEM</text>
+  <text x="240" y="155" font-family="Helvetica" font-size="9" fill="#64748b">QTY</text>
+  <text x="280" y="155" font-family="Helvetica" font-size="9" fill="#64748b">RATE</text>
+  <text x="340" y="155" font-family="Helvetica" font-size="9" fill="#64748b" text-anchor="end">AMT</text>
+  <line x1="20" y1="162" x2="340" y2="162" stroke="#e2e8f0"/>
+
+  <text x="20" y="185" font-family="Helvetica" font-size="11" fill="#0f172a">Parker Pen (Blue)</text>
+  <text x="240" y="185" font-family="Helvetica" font-size="11" fill="#0f172a">1</text>
+  <text x="280" y="185" font-family="Helvetica" font-size="11" fill="#0f172a">450</text>
+  <text x="340" y="185" font-family="Helvetica" font-size="11" fill="#0f172a" font-weight="bold" text-anchor="end">450</text>
+
+  <text x="20" y="215" font-family="Helvetica" font-size="11" fill="#0f172a">A4 Notebook (200pg)</text>
+  <text x="240" y="215" font-family="Helvetica" font-size="11" fill="#0f172a">2</text>
+  <text x="280" y="215" font-family="Helvetica" font-size="11" fill="#0f172a">160</text>
+  <text x="340" y="215" font-family="Helvetica" font-size="11" fill="#0f172a" font-weight="bold" text-anchor="end">320</text>
+
+  <text x="20" y="245" font-family="Helvetica" font-size="11" fill="#0f172a">Stapler (Medium)</text>
+  <text x="240" y="245" font-family="Helvetica" font-size="11" fill="#0f172a">1</text>
+  <text x="280" y="245" font-family="Helvetica" font-size="11" fill="#0f172a">280</text>
+  <text x="340" y="245" font-family="Helvetica" font-size="11" fill="#0f172a" font-weight="bold" text-anchor="end">280</text>
+
+  <text x="20" y="275" font-family="Helvetica" font-size="11" fill="#0f172a">Highlighter Set</text>
+  <text x="240" y="275" font-family="Helvetica" font-size="11" fill="#0f172a">4</text>
+  <text x="280" y="275" font-family="Helvetica" font-size="11" fill="#0f172a">160</text>
+  <text x="340" y="275" font-family="Helvetica" font-size="11" fill="#0f172a" font-weight="bold" text-anchor="end">640</text>
+
+  <line x1="20" y1="300" x2="340" y2="300" stroke="#e2e8f0" stroke-dasharray="2,2"/>
+
+  <text x="20" y="335" font-family="Helvetica" font-size="11" fill="#64748b">Subtotal</text>
+  <text x="340" y="335" font-family="Helvetica" font-size="11" fill="#0f172a" text-anchor="end">₹1,690.00</text>
+  <text x="20" y="360" font-family="Helvetica" font-size="11" fill="#64748b">Discount</text>
+  <text x="340" y="360" font-family="Helvetica" font-size="11" fill="#0f172a" text-anchor="end">—</text>
+
+  <rect x="20" y="380" width="320" height="44" fill="#0ea5e9"/>
+  <text x="40" y="408" font-family="Helvetica" font-size="14" fill="#ffffff" font-weight="bold">TOTAL</text>
+  <text x="320" y="408" font-family="Helvetica" font-size="16" fill="#ffffff" font-weight="bold" text-anchor="end">₹1,690.00</text>
+
+  <text x="20" y="455" font-family="Helvetica" font-size="10" fill="#64748b">PAYMENT METHOD</text>
+  <text x="20" y="473" font-family="Helvetica" font-size="12" font-weight="bold" fill="#0f172a">Cash</text>
+
+  <line x1="20" y1="500" x2="340" y2="500" stroke="#e2e8f0" stroke-dasharray="2,2"/>
+  <text x="180" y="525" font-family="Helvetica" font-size="10" fill="#64748b" text-anchor="middle">Thank you for shopping with us!</text>
+  <text x="180" y="545" font-family="Helvetica" font-size="9" fill="#94a3b8" text-anchor="middle">Returns accepted within 7 days with receipt</text>
+  <text x="180" y="565" font-family="Helvetica" font-size="9" fill="#94a3b8" text-anchor="middle">GSTIN: 29AAFCB7894K1ZP</text>
+</svg>

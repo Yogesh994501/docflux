@@ -1,0 +1,104 @@
+// AutoFinDocs — Intelligent Document OCR & Parsing Platform
+// Prisma schema (SQLite)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Documents ────────────────────────────────────────────────────────────────
+
+model Document {
+  id             String   @id @default(cuid())
+  fileName       String
+  fileType       String   // mime type: image/jpeg, application/pdf, etc.
+  fileSize       Int      // bytes
+  storagePath    String   // relative path under /public/uploads
+  thumbnailPath  String?  // optional smaller preview
+
+  // Classification
+  documentType   String?  // GST_INVOICE | RECEIPT | GOVT_ID | E_BILL | PURCHASE_ORDER | DELIVERY_CHALLAN | CREDIT_NOTE | DEBIT_NOTE | BANK_STATEMENT | UNKNOWN
+  source         String   @default("web") // web | email | android
+  status         String   @default("UPLOADED") // UPLOADED | PROCESSING | EXTRACTED | APPROVED | REJECTED | FAILED
+
+  // OCR
+  ocrText        String?  // raw extracted text
+  ocrConfidence  Float?   // 0.0 - 1.0
+  ocrLanguage    String?  @default("en")
+
+  // Structured extraction (JSON blob with vendor, gstin, invoiceNumber, etc.)
+  extractedData  String?  // JSON string of ExtractedData
+
+  // Workflow
+  fraudRisk      String?  // LOW | MEDIUM | HIGH
+  approvalComments String?
+  approvedBy     String?
+
+  // Relations
+  vendorId       String?
+  vendor         Vendor?  @relation(fields: [vendorId], references: [id])
+
+  // Timestamps
+  uploadedAt     DateTime @default(now())
+  processedAt    DateTime?
+  approvedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Audit
+  auditLogs      AuditLog[]
+
+  @@index([status])
+  @@index([documentType])
+  @@index([vendorId])
+  @@index([uploadedAt])
+}
+
+// ─── Vendors / Customers (CRM-lite) ───────────────────────────────────────────
+
+model Vendor {
+  id          String   @id @default(cuid())
+  name        String
+  gstin       String?  // GST Identification Number (India)
+  pan         String?  // PAN number
+  email       String?
+  phone       String?
+  address     String?
+  category    String?  // supplier | customer | both
+  documents   Document[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+  @@index([gstin])
+}
+
+// ─── Audit Trail ──────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  action      String   // UPLOADED | OCR_COMPLETED | EXTRACTED | APPROVED | REJECTED | EDITED | REPROCESSED
+  details     String?  // JSON string with context
+  actor       String?  @default("system")
+  timestamp   DateTime @default(now())
+
+  @@index([documentId])
+  @@index([action])
+}
+
+// ─── AI Copilot Conversations ─────────────────────────────────────────────────
+
+model CopilotMessage {
+  id          String   @id @default(cuid())
+  role        String   // user | assistant
+  content     String
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
