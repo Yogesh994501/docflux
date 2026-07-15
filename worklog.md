@@ -227,3 +227,40 @@ Stage Summary:
   by owner. RLS policies on Supabase.
 - New users start with empty dashboard; "Load demo data" seeds their account.
 - Data isolation verified: two users cannot see each other's documents.
+
+---
+Task ID: 39
+Agent: orchestrator (auth bypass for testing)
+Task: Disable login/auth for testing without deleting code
+
+Work Log:
+- Added AUTH_DISABLED="true" to .env (with explanatory comment).
+- Added isAuthDisabled() helper + getOrCreateTestUser() in src/lib/auth.ts.
+  Test user: demo@autofindocs.com (auto-created in SQLite if missing, fixed
+  UUID for Supabase).
+- Updated auth.signup/login/logout/getCurrentUser to short-circuit when
+  AUTH_DISABLED=true:
+  * signup/login → return test user without creating a real session
+  * logout → no-op (stay logged in as test user)
+  * getCurrentUser → always return test user
+  * requireUser → inherits (returns test user)
+  All real auth code (bcrypt, JWT, Supabase Auth, cookie mgmt) is untouched
+  and reactivates when AUTH_DISABLED=false.
+- Updated /api/status to expose authDisabled flag.
+- Updated AuthProvider.logout to re-fetch after logout (so when disabled,
+  the test user is restored instead of dropping to login screen).
+- Updated Profile section: amber "Test mode — auth disabled" banner with
+  instructions to set AUTH_DISABLED=false to re-enable.
+- Verified with Agent Browser:
+  * App loads straight into dashboard (no login screen) ✓
+  * /api/auth/me returns demo@autofindocs.com without cookie ✓
+  * /api/status shows authDisabled: true ✓
+  * Seed works → 6 docs, ₹3.30 L spend for Demo User ✓
+  * Profile shows "Test mode — auth disabled" banner ✓
+  * Sign out is a no-op (stays logged in as Demo User) ✓
+
+Stage Summary:
+- Auth is disabled for testing via AUTH_DISABLED="true" in .env.
+- No code deleted — flip to "false" to re-enable full login/signup/profile.
+- App auto-logs-in as Demo User (demo@autofindocs.com); all data is scoped
+  to that test account.

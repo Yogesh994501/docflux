@@ -190,7 +190,7 @@ export function useStatusQuery() {
   return useQuery({
     queryKey: ['status'],
     queryFn: () =>
-      http<{ database: 'supabase' | 'sqlite'; ocr: 'gemini' | 'zai'; auth: 'supabase' | 'local'; geminiModel: string }>(
+      http<{ database: 'supabase' | 'sqlite'; ocr: 'gemini' | 'zai'; auth: 'supabase' | 'local'; authDisabled: boolean; geminiModel: string }>(
         '/api/status',
       ),
     staleTime: 5 * 60 * 1000,
