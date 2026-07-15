@@ -42,6 +42,57 @@ export function getAuthProvider(): 'supabase' | 'local' {
   return isSupabaseEnabled() ? 'supabase' : 'local'
 }
 
+// ─── Auth bypass (for testing) ────────────────────────────────────────────────
+// When AUTH_DISABLED=true, the app skips login/signup entirely and auto-uses
+// a default test user. All real auth code below stays intact — flip the env
+// var to "false" to re-enable authentication.
+
+export function isAuthDisabled(): boolean {
+  return process.env.AUTH_DISABLED === 'true'
+}
+
+const TEST_USER = {
+  id: 'test-user-00000000-0000-0000-0000-000000000001',
+  email: 'demo@autofindocs.com',
+  name: 'Demo User',
+  avatarUrl: null as string | null,
+  provider: 'local' as const,
+}
+
+async function getOrCreateTestUser(): Promise<AuthUser> {
+  if (isSupabaseEnabled()) {
+    // For Supabase, return a fixed test identity (RLS may block unless a real
+    // user exists — for local testing prefer SQLite/local mode).
+    return { ...TEST_USER }
+  }
+  // Local backend: find or create the demo user in SQLite so userId FKs resolve
+  const existing = await db.user.findUnique({ where: { email: TEST_USER.email } })
+  if (existing) {
+    return {
+      id: existing.id,
+      email: existing.email,
+      name: existing.name,
+      avatarUrl: existing.avatarUrl,
+      provider: 'local',
+    }
+  }
+  const created = await db.user.create({
+    data: {
+      id: TEST_USER.id,
+      email: TEST_USER.email,
+      name: TEST_USER.name,
+      passwordHash: 'test-disabled-auth',
+    },
+  })
+  return {
+    id: created.id,
+    email: created.email,
+    name: created.name,
+    avatarUrl: created.avatarUrl,
+    provider: 'local',
+  }
+}
+
 // ─── Local backend (SQLite + bcrypt + JWT) ────────────────────────────────────
 
 async function localSignup(email: string, password: string, name: string): Promise<AuthSession> {
@@ -220,6 +271,11 @@ export const auth = {
   provider: getAuthProvider(),
 
   async signup(email: string, password: string, name: string): Promise<AuthSession> {
+    // Auth bypass — return the test user without creating a real session
+    if (isAuthDisabled()) {
+      const user = await getOrCreateTestUser()
+      return { user, token: 'auth-disabled' }
+    }
     if (password.length < 6) throw new Error('Password must be at least 6 characters')
     if (!email.includes('@')) throw new Error('Please enter a valid email address')
     if (!name.trim()) throw new Error('Please enter your name')
@@ -231,6 +287,11 @@ export const auth = {
   },
 
   async login(email: string, password: string): Promise<AuthSession> {
+    // Auth bypass — return the test user without verifying credentials
+    if (isAuthDisabled()) {
+      const user = await getOrCreateTestUser()
+      return { user, token: 'auth-disabled' }
+    }
     if (!email.includes('@')) throw new Error('Please enter a valid email address')
     const session = isSupabaseEnabled()
       ? await supabaseLogin(email, password)
@@ -240,10 +301,14 @@ export const auth = {
   },
 
   async logout(): Promise<void> {
+    // Auth bypass — no-op (stay logged in as the test user)
+    if (isAuthDisabled()) return
     await clearSessionCookie()
   },
 
   async getCurrentUser(): Promise<AuthUser | null> {
+    // Auth bypass — always return the test user
+    if (isAuthDisabled()) return getOrCreateTestUser()
     const token = await getToken()
     return isSupabaseEnabled()
       ? supabaseGetCurrentUser(token)

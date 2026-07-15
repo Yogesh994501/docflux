@@ -66,8 +66,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
-    setUser(null)
-  }, [])
+    // Re-fetch — when AUTH_DISABLED is true, the server returns the test user
+    // again so the user stays logged in (no real session to clear).
+    await refresh()
+  }, [refresh])
 
   const updateProfile = useCallback(async (data: { name?: string; avatarUrl?: string | null }) => {
     const res = await fetch('/api/auth/profile', {

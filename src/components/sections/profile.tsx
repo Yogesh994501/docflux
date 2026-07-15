@@ -124,6 +124,19 @@ export function ProfileSection() {
             <Shield className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold">System configuration</h3>
           </div>
+
+          {/* Test mode banner */}
+          {status?.authDisabled && (
+            <div className="mb-3 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/40">
+              <Shield className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div className="text-xs">
+                <div className="font-semibold text-amber-700 dark:text-amber-300">Test mode — auth disabled</div>
+                <div className="mt-0.5 text-amber-700/80 dark:text-amber-300/80">
+                  Login/signup is bypassed. Set <code className="rounded bg-amber-100 px-1 py-0.5 text-[10px] dark:bg-amber-900/60">AUTH_DISABLED=false</code> in <code className="rounded bg-amber-100 px-1 py-0.5 text-[10px] dark:bg-amber-900/60">.env</code> to re-enable authentication.
+                </div>
+              </div>
+            </div>
+          )}
           <div className="space-y-3">
             <div className="flex items-center justify-between rounded-xl border border-border/60 bg-card/40 p-3">
               <div className="flex items-center gap-2.5">
