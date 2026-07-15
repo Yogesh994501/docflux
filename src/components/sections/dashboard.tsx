@@ -75,15 +75,35 @@ export function DashboardSection() {
 
   return (
     <div className="space-y-6">
-      {/* Hero greeting */}
+      {/* Hero greeting with ambient Strands glow */}
       <FadeInUp>
-        <div className="flex flex-col gap-1">
-          <h2 className="text-2xl font-semibold tracking-tight">
-            Welcome back. <AuroraText>Here's your pipeline.</AuroraText>
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {c.total} documents processed · {c.pending} awaiting review · {formatCurrency(analytics.totalSpend)} total spend tracked
-          </p>
+        <div className="relative overflow-hidden rounded-3xl">
+          {/* Subtle fluid Strands backdrop — premium awwwards-style ambient */}
+          <div className="pointer-events-none absolute inset-0 opacity-[0.18]">
+            <Strands
+              colors={['#10b981', '#06b6d4', '#8b5cf6']}
+              count={2}
+              speed={0.3}
+              amplitude={0.7}
+              waviness={0.9}
+              thickness={0.5}
+              glow={3.5}
+              taper={3.5}
+              spread={1}
+              intensity={0.5}
+              saturation={1.3}
+              opacity={0.8}
+              scale={2}
+            />
+          </div>
+          <div className="relative z-10 px-1 py-5">
+            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              Welcome back. <AuroraText>Here's your pipeline.</AuroraText>
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {c.total} documents processed · {c.pending} awaiting review · {formatCurrency(analytics.totalSpend)} total spend tracked
+            </p>
+          </div>
         </div>
       </FadeInUp>
 
