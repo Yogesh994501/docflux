@@ -367,7 +367,6 @@ export default function Strands({
       }
       gl.getExtension('WEBGL_lose_context')?.loseContext()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return <div ref={ctnDom} className={`strands-container ${className}`} style={style} />
