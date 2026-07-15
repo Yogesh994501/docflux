@@ -13,75 +13,136 @@ import {
   ScanLine,
   Moon,
   Sun,
+  Database,
+  Cpu,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
+import { useStatusQuery } from '@/lib/queries'
+import { motion, AnimatePresence } from 'framer-motion'
 
-const NAV: { id: Section; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'upload', label: 'Upload & Scan', icon: Upload },
-  { id: 'documents', label: 'Documents', icon: FileText },
-  { id: 'approvals', label: 'Approvals', icon: CheckCircle2 },
-  { id: 'vendors', label: 'Vendors / CRM', icon: Building2 },
-  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-  { id: 'copilot', label: 'AI Copilot', icon: Sparkles },
+const NAV: { id: Section; label: string; icon: typeof LayoutDashboard; desc: string }[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Overview & insights' },
+  { id: 'upload', label: 'Upload & Scan', icon: Upload, desc: 'OCR new documents' },
+  { id: 'documents', label: 'Documents', icon: FileText, desc: 'All parsed records' },
+  { id: 'approvals', label: 'Approvals', icon: CheckCircle2, desc: 'Pending review' },
+  { id: 'vendors', label: 'Vendors', icon: Building2, desc: 'Supplier CRM' },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3, desc: 'Spend & trends' },
+  { id: 'copilot', label: 'AI Copilot', icon: Sparkles, desc: 'Ask anything' },
 ]
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { section, setSection } = useAppStore()
   const { theme, setTheme } = useTheme()
+  const { data: status } = useStatusQuery()
 
   return (
-    <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+    <div className="flex h-full flex-col sidebar-glass">
       {/* Brand */}
-      <div className="flex items-center gap-2.5 px-5 py-5 border-b border-sidebar-border">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+      <div className="flex items-center gap-3 px-5 py-6">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground text-background shadow-sm"
+        >
           <ScanLine className="h-5 w-5" />
-        </div>
+        </motion.div>
         <div className="leading-tight">
-          <div className="text-base font-bold tracking-tight">AutoFinDocs</div>
+          <div className="text-[15px] font-semibold tracking-tight">AutoFinDocs</div>
           <div className="text-[11px] text-muted-foreground">OCR & Document Parsing</div>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto custom-scroll px-3 py-4 space-y-1">
-        <div className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <nav className="flex-1 overflow-y-auto custom-scroll px-3 py-2 space-y-0.5">
+        <div className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
           Workspace
         </div>
-        {NAV.map((item) => {
+        {NAV.map((item, i) => {
           const Icon = item.icon
           const active = section === item.id
           return (
-            <button
+            <motion.button
               key={item.id}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3, delay: 0.05 + i * 0.04 }}
               onClick={() => {
                 setSection(item.id)
                 onNavigate?.()
               }}
               className={cn(
-                'group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
+                'group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
                 active
-                  ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
-                  : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                  ? 'bg-foreground text-background font-medium shadow-sm'
+                  : 'text-foreground/70 hover:bg-foreground/[0.05] hover:text-foreground',
               )}
             >
-              <Icon className={cn('h-4.5 w-4.5 shrink-0', active ? '' : 'text-muted-foreground group-hover:text-sidebar-accent-foreground')} />
-              <span>{item.label}</span>
-            </button>
+              <Icon className={cn('h-[18px] w-[18px] shrink-0', active ? '' : 'text-muted-foreground group-hover:text-foreground')} />
+              <div className="min-w-0 flex-1 text-left">
+                <div className="truncate">{item.label}</div>
+                <div className={cn('truncate text-[10px]', active ? 'text-background/60' : 'text-muted-foreground/60')}>
+                  {item.desc}
+                </div>
+              </div>
+              {active && (
+                <motion.div
+                  layoutId="nav-dot"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full bg-background"
+                />
+              )}
+            </motion.button>
           )
         })}
       </nav>
 
+      {/* System status */}
+      <div className="px-3 py-3">
+        <div className="rounded-xl border border-border/60 bg-card/50 p-3 space-y-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            System
+          </div>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <Database className="h-3 w-3" /> Database
+            </span>
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className={cn('h-1.5 w-1.5 rounded-full', status?.database === 'supabase' ? 'bg-emerald-500' : 'bg-amber-500')} />
+              {status?.database ?? 'sqlite'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <Cpu className="h-3 w-3" /> OCR Engine
+            </span>
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              {status?.ocr === 'gemini' ? `Gemini ${status.geminiModel?.replace('gemini-', '')}` : 'GLM-4.6V'}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Theme toggle */}
-      <div className="border-t border-sidebar-border p-3">
+      <div className="border-t border-border/60 p-3">
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground"
+          className="w-full justify-start gap-2.5 text-foreground/60 hover:text-foreground rounded-xl"
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
         >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          <AnimatePresence mode="wait">
+            {theme === 'dark' ? (
+              <motion.span key="sun" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.2 }}>
+                <Sun className="h-4 w-4" />
+              </motion.span>
+            ) : (
+              <motion.span key="moon" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.2 }}>
+                <Moon className="h-4 w-4" />
+              </motion.span>
+            )}
+          </AnimatePresence>
           {theme === 'dark' ? 'Light mode' : 'Dark mode'}
         </Button>
       </div>

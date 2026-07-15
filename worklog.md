@@ -66,3 +66,52 @@ Stage Summary:
   vendor/invoice/amounts/line-items extraction.
 - 7 document types supported: GST Invoice, Receipt, Government ID (PAN/Aadhaar),
   Utility Bill, Purchase Order, Delivery Challan, Credit/Debit Note, Bank Statement.
+
+---
+Task ID: 16-22
+Agent: orchestrator (v2 overhaul)
+Task: Gemini OCR, Supabase conditional DB, Apple-premium UI, Framer Motion, React Bits, hamburger left, asset guide
+
+Work Log:
+- Created .env + .env.example with Gemini + Supabase config.
+- Installed @google/genai + @supabase/supabase-js.
+- Refactored AI lib (src/lib/ai.ts): dual OCR providers — Google Gemini 2.5 Flash
+  (OCR_PROVIDER=gemini + GEMINI_API_KEY) with automatic Z.ai GLM-4.6V fallback.
+  getActiveProvider() exposes which engine is running.
+- Built repository layer (src/lib/repository.ts + supabase-backend.ts):
+  if SUPABASE_URL + SUPABASE_ANON_KEY set → Supabase (PostgreSQL via PostgREST);
+  else → Prisma/SQLite. All API routes refactored to use repo.* functions.
+  Provided supabase-schema.sql for table creation.
+- Added /api/status route exposing database + ocr provider (shown in sidebar + header).
+- Redesigned globals.css: Apple-premium theme (near-white bg, soft layered shadows,
+  glassmorphism .glass/.sidebar-glass, refined oklch palette, letter-spacing tuning).
+- Built React-Bits-style motion primitives (motion-primitives.tsx): AnimatedCounter,
+  SpotlightCard (mouse-follow glow), FadeInUp, StaggerContainer/Item, TiltCard (3D),
+  AuroraText (animated gradient), PageTransition, ScaleIn.
+- Redesigned sidebar: glassmorphic, staggered nav entrance, layoutId active indicator,
+  System panel (DB + OCR engine live status), animated theme toggle.
+- Redesigned app shell: hamburger moved to LEFT side, glass sticky header + footer,
+  live status pills, AnimatePresence section transitions.
+- Redesigned Dashboard: AuroraText hero, 4 SpotlightCard KPIs with AnimatedCounter,
+  staggered entrance, fraud-risk animated bars, premium charts.
+- Redesigned Upload, Documents, Approvals, Vendors, Analytics, Copilot — all premium
+  with SpotlightCards, Framer Motion, consistent rounded-2xl aesthetic.
+- Removed hardcoded data: all sections pull from API (status, analytics, vendors, docs).
+- Wrote ASSETS.md guide: document samples (SVG→PNG, AI gen, real scans), UI imagery,
+  video recording via Agent Browser, Framer Motion component reference, OCR engine table.
+- Verified with Agent Browser:
+  * Dashboard renders with animated counters + AuroraText ✓
+  * Sidebar System panel shows "Database: sqlite, OCR Engine: GLM-4.6V" ✓
+  * Mobile hamburger on LEFT (menuLeft:16, leftmost) ✓
+  * Section transitions animate (Analytics, Copilot) ✓
+  * No console errors ✓
+  * Live OCR upload: GST Invoice extracted, 95% confidence, correct fields ✓
+  * Lint clean ✓
+
+Stage Summary:
+- Two OCR engines: Gemini 2.5 Flash (primary, env-driven) + Z.ai GLM-4.6V (fallback).
+- Two databases: Supabase Postgres (if env set) + SQLite (default) — switchable via .env.
+- Apple-premium UI: glassmorphism, soft shadows, staggered Framer Motion animations,
+  React-Bits-style components (SpotlightCard, AnimatedCounter, TiltCard, AuroraText).
+- Hamburger on left, status pills in header + sidebar, animated everything.
+- All data dynamic from API. ASSETS.md guides asset creation.

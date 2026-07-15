@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { repo } from '@/lib/repository'
 import { copilotChat } from '@/lib/ai'
 import { ok, err } from '@/lib/constants'
 
@@ -19,8 +19,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(err('messages[] required'), { status: 400 })
     }
 
-    // If a document context was provided, prepend a summary so the LLM can answer
-    // doc-specific questions accurately.
     const enriched: ChatMsg[] = []
     if (documentContext) {
       const summary = `The user is currently viewing this document:
@@ -35,12 +33,11 @@ Answer questions about this document using the data above.`
 
     const reply = await copilotChat(enriched)
 
-    // Persist user message + assistant reply
     const lastUser = messages.filter((m) => m.role === 'user').pop()
     if (lastUser) {
-      await db.copilotMessage.create({ data: { role: 'user', content: lastUser.content } })
+      await repo.createCopilotMessage('user', lastUser.content)
     }
-    await db.copilotMessage.create({ data: { role: 'assistant', content: reply } })
+    await repo.createCopilotMessage('assistant', reply)
 
     return NextResponse.json(ok({ reply }))
   } catch (e) {
@@ -49,13 +46,9 @@ Answer questions about this document using the data above.`
   }
 }
 
-// Fetch recent chat history
 export async function GET() {
   try {
-    const messages = await db.copilotMessage.findMany({
-      orderBy: { createdAt: 'asc' },
-      take: 50,
-    })
+    const messages = await repo.listCopilotMessages(50)
     return NextResponse.json(ok({ items: messages }))
   } catch (e) {
     console.error('[GET /api/copilot]', e)
