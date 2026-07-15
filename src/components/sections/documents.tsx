@@ -72,13 +72,21 @@ export function DocumentsSection() {
           {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-52 rounded-2xl" />)}
         </div>
       ) : items.length === 0 ? (
-        <SpotlightCard className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-          <div className="rounded-2xl bg-muted p-4"><FileSearch className="h-8 w-8 text-muted-foreground" /></div>
-          <div>
-            <div className="text-sm font-medium">{hasFilters ? 'No documents match your filters' : 'No documents yet'}</div>
-            <div className="text-xs text-muted-foreground">{hasFilters ? 'Try clearing filters' : 'Upload your first document to see it here'}</div>
+        <div className="relative overflow-hidden flex flex-col items-center justify-center gap-3 py-20 text-center rounded-[14px] border border-brand-cream-border shadow-editorial">
+          <img src="/brand/document-stack.jpeg" alt="Documents" className="absolute inset-0 w-full h-full object-cover blur-sm opacity-50" />
+          <div className="absolute inset-0 bg-brand-cream/60" />
+          <div className="relative z-10 flex flex-col items-center max-w-sm">
+            <div className="rounded-xl bg-white p-4 shadow-editorial mb-4">
+              <FileSearch className="h-8 w-8 text-brand-terracotta" />
+            </div>
+            <div className="text-lg font-serif text-brand-navy-900 mb-1">
+              {hasFilters ? 'No documents match your filters' : 'No documents yet'}
+            </div>
+            <div className="text-sm text-brand-navy-700">
+              {hasFilters ? 'Try clearing filters to see results.' : 'Drag new receipts or invoices here to invoke agentic parsing.'}
+            </div>
           </div>
-        </SpotlightCard>
+        </div>
       ) : (
         <StaggerContainer className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {items.map((doc) => (
@@ -87,7 +95,7 @@ export function DocumentsSection() {
                 onClick={() => openDetail(doc.id)}
                 whileHover={{ y: -3 }}
                 transition={{ duration: 0.2 }}
-                className="group flex w-full flex-col overflow-hidden rounded-2xl premium-card text-left"
+                className="group flex w-full flex-col overflow-hidden rounded-[14px] bg-white border border-brand-cream-border shadow-editorial text-left hover:shadow-activeCard"
               >
                 <div className="relative aspect-[4/3] overflow-hidden bg-muted">
                   {doc.fileType.startsWith('image/') ? (

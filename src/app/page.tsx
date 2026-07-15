@@ -9,6 +9,7 @@ import { ApprovalsSection } from '@/components/sections/approvals'
 import { VendorsSection } from '@/components/sections/vendors'
 import { AnalyticsSection } from '@/components/sections/analytics'
 import { CopilotSection } from '@/components/sections/copilot'
+import { ExtractionWorkbenchSection } from '@/components/sections/extraction-workbench'
 import { ProfileSection } from '@/components/sections/profile'
 import { DocumentDetailModal } from '@/components/document-detail-modal'
 import { useAppStore } from '@/lib/store'
@@ -22,8 +23,8 @@ export default function Home() {
   // Loading state — minimal branded splash
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-foreground text-background shadow-lg animate-pulse">
+      <div className="flex min-h-screen items-center justify-center bg-brand-cream">
+        <div className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-brand-terracotta text-white shadow-sm animate-pulse">
           <ScanLine className="h-6 w-6" />
         </div>
       </div>
@@ -44,6 +45,7 @@ export default function Home() {
       {section === 'vendors' && <VendorsSection />}
       {section === 'analytics' && <AnalyticsSection />}
       {section === 'copilot' && <CopilotSection />}
+      {section === 'extraction' && <ExtractionWorkbenchSection />}
       {section === 'profile' && <ProfileSection />}
 
       {/* Global detail modal — any section can open it */}

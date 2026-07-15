@@ -69,7 +69,7 @@ export function SpotlightCard({
     <motion.div
       ref={ref}
       onMouseMove={handleMouseMove}
-      className={cn('spotlight-card premium-card rounded-2xl', className)}
+      className={cn('spotlight-card premium-card rounded-[14px]', className)}
       {...props}
     >
       {children}
@@ -189,7 +189,7 @@ export function TiltCard({
       onMouseMove={handleMove}
       onMouseLeave={handleLeave}
       style={{ rotateX, rotateY, transformStyle: 'preserve-3d', perspective: 800 }}
-      className={cn('premium-card rounded-2xl', className)}
+      className={cn('premium-card rounded-[14px]', className)}
     >
       <div style={{ transform: 'translateZ(20px)' }}>{children}</div>
     </motion.div>

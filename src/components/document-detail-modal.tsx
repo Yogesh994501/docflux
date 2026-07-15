@@ -61,8 +61,8 @@ export function DocumentDetailModal() {
 
   return (
     <Dialog open={!!detailDocId} onOpenChange={(o) => !o && closeDetail()}>
-      <DialogContent className="max-w-6xl h-[92vh] p-0 gap-0 overflow-hidden">
-        <DialogHeader className="px-6 py-4 border-b border-border bg-card">
+      <DialogContent className="max-w-6xl h-[92vh] p-0 gap-0 overflow-hidden bg-brand-cream border-brand-cream-border">
+        <DialogHeader className="px-6 py-4 border-b border-brand-cream-border bg-white">
           <DialogTitle className="flex items-center gap-3 flex-wrap text-base">
             <FileText className="h-4.5 w-4.5 text-primary" />
             <span className="truncate">{doc?.fileName ?? 'Loading…'}</span>
@@ -168,8 +168,8 @@ function DetailBody({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
   }
 
   return (
-    <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden">
-      <div className="border-b border-border px-6 py-2">
+    <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden bg-white">
+      <div className="border-b border-brand-cream-border px-6 py-2 bg-brand-cream/30">
         <TabsList>
           <TabsTrigger value="overview" className="text-xs">
             <ImageIcon className="mr-1.5 h-3.5 w-3.5" /> Overview
@@ -189,10 +189,10 @@ function DetailBody({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Document image */}
             <div>
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="mb-2 text-sm font-serif font-semibold text-brand-navy-900">
                 Document Preview
               </div>
-              <div className="overflow-hidden rounded-lg border border-border bg-muted/40">
+              <div className="overflow-hidden rounded-[14px] border border-brand-cream-border bg-brand-cream/50 shadow-editorial">
                 {doc.fileType.startsWith('image/') ? (
                   <img
                     src={doc.storagePath}
@@ -216,12 +216,12 @@ function DetailBody({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
               </div>
 
               {ext?.fraudIndicators && ext.fraudIndicators.length > 0 && (
-                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/40">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
+                <div className="mt-4 rounded-[14px] border border-brand-amber/30 bg-brand-amber-tint p-3 shadow-sm">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-amber-800">
                     <AlertTriangle className="h-4 w-4" />
                     Fraud Indicators
                   </div>
-                  <ul className="mt-2 list-disc pl-5 text-xs text-amber-700 dark:text-amber-300">
+                  <ul className="mt-2 list-disc pl-5 text-xs text-amber-800">
                     {ext.fraudIndicators.map((f, i) => (
                       <li key={i}>{f}</li>
                     ))}
@@ -233,7 +233,7 @@ function DetailBody({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
             {/* Extracted fields */}
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <span className="text-sm font-serif font-semibold text-brand-navy-900">
                   Extracted Fields
                 </span>
                 <div className="flex gap-1.5">
@@ -317,7 +317,7 @@ function DetailBody({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
 
           {/* Approval bar */}
           {doc.status !== 'APPROVED' && doc.status !== 'REJECTED' && (
-            <div className="mt-6 rounded-lg border border-border bg-card p-4">
+            <div className="mt-6 rounded-[14px] border border-brand-cream-border bg-white shadow-editorial p-4">
               <Label className="text-xs font-semibold">Approval comments</Label>
               <Textarea
                 className="mt-1.5 min-h-[60px] text-sm"
@@ -326,11 +326,11 @@ function DetailBody({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
                 onChange={(e) => setComments(e.target.value)}
               />
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button onClick={handleApprove} disabled={approve.isPending} size="sm">
+                <Button onClick={handleApprove} disabled={approve.isPending} size="sm" className="bg-brand-terracotta hover:bg-brand-terracotta/90 text-white rounded-[8px]">
                   <CheckCircle2 className="mr-1.5 h-4 w-4" />
                   {approve.isPending ? 'Approving…' : 'Approve'}
                 </Button>
-                <Button onClick={handleReject} disabled={reject.isPending} size="sm" variant="destructive">
+                <Button onClick={handleReject} disabled={reject.isPending} size="sm" variant="outline" className="text-brand-navy-900 border-brand-cream-border hover:bg-brand-cream rounded-[8px]">
                   <XCircle className="mr-1.5 h-4 w-4" />
                   {reject.isPending ? 'Rejecting…' : 'Reject'}
                 </Button>
@@ -349,7 +349,7 @@ function DetailBody({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
           )}
 
           {(doc.status === 'APPROVED' || doc.status === 'REJECTED') && (
-            <div className="mt-6 rounded-lg border border-border bg-card p-4">
+            <div className="mt-6 rounded-[14px] border border-brand-cream-border bg-brand-cream/30 p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -504,10 +504,10 @@ function ExtractedFieldsView({ ext }: { ext: ExtractedData | null }) {
         if (visible.length === 0) return null
         return (
           <div key={g.title}>
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="mb-2 text-sm font-serif font-semibold text-brand-navy-900">
               {g.title}
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-border bg-card p-3">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-[8px] border border-brand-cream-border bg-white shadow-sm p-3">
               {visible.map(([label, value]) => (
                 <div key={label} className="min-w-0">
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground">

@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScanLine, Mail, Lock, User, Loader2, ArrowRight, CheckCircle2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import Strands from '@/components/strands'
 import { toast } from 'sonner'
 
 export function AuthScreen() {
@@ -37,72 +36,54 @@ export function AuthScreen() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-background">
-      {/* Strands fluid background — premium engagement */}
-      <div className="absolute inset-0 opacity-60">
-        <Strands
-          colors={['#10b981', '#06b6d4', '#8b5cf6', '#f59e0b']}
-          count={4}
-          speed={0.5}
-          amplitude={1}
-          waviness={1.2}
-          thickness={0.6}
-          glow={3}
-          taper={3}
-          spread={1.2}
-          intensity={0.7}
-          saturation={1.5}
-          opacity={0.9}
-          scale={1.6}
-        />
+    <div className="flex min-h-screen w-full">
+      {/* Left pane - Brand */}
+      <div className="hidden lg:flex w-1/2 bg-brand-navy-950 items-center justify-center relative flex-col gap-6">
+        <div className="absolute inset-0 bg-[url('/brand/document-stack.jpeg')] opacity-10 bg-cover bg-center mix-blend-overlay"></div>
+        <div className="relative z-10 flex flex-col items-center gap-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-[14px] bg-brand-terracotta text-white shadow-lg">
+            <ScanLine className="h-8 w-8" />
+          </div>
+          <h1 className="text-5xl font-serif font-semibold text-white tracking-wide">DocFlux</h1>
+          <p className="text-brand-navy-700 text-lg">Intelligent OCR & agentic parsing</p>
+        </div>
       </div>
-      {/* Dark veil for legibility */}
-      <div className="absolute inset-0 bg-background/40 backdrop-blur-[3px]" />
 
-      <div className="relative z-10 flex min-h-screen items-center justify-center p-4">
+      {/* Right pane - Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center bg-brand-cream p-4">
         <motion.div
-          initial={{ opacity: 0, y: 16, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full max-w-md overflow-hidden rounded-3xl border border-white/15 shadow-2xl"
-          style={{
-            background: 'color-mix(in oklch, var(--card) 60%, transparent)',
-            backdropFilter: 'saturate(180%) blur(28px)',
-            WebkitBackdropFilter: 'saturate(180%) blur(28px)',
-          }}
+          className="w-full max-w-md overflow-hidden rounded-[14px] border border-brand-cream-border bg-white shadow-editorial"
         >
-          {/* Header */}
-          <div className="flex flex-col items-center gap-3 px-8 pt-8 pb-6 text-center">
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.15, duration: 0.4 }}
-              className="flex h-12 w-12 items-center justify-center rounded-2xl bg-foreground text-background shadow-lg"
-            >
+          {/* Header for mobile (hidden on desktop) */}
+          <div className="flex flex-col items-center gap-3 px-8 pt-8 pb-6 text-center lg:hidden">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-brand-terracotta text-white shadow-sm">
               <ScanLine className="h-6 w-6" />
-            </motion.div>
+            </div>
             <div>
-              <h1 className="text-xl font-semibold tracking-tight">AutoFinDocs</h1>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Intelligent OCR & document parsing
+              <h1 className="text-xl font-serif font-semibold text-brand-navy-900">DocFlux</h1>
+              <p className="mt-0.5 text-xs text-brand-navy-700">
+                Intelligent OCR & parsing
               </p>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="mx-8 mb-5 grid grid-cols-2 gap-1 rounded-xl bg-foreground/[0.04] p-1">
+          <div className="mx-8 mb-5 grid grid-cols-2 gap-1 rounded-[8px] bg-brand-cream p-1 border border-brand-cream-border">
             {(['login', 'signup'] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
-                className={`relative rounded-lg py-2 text-xs font-medium transition-colors ${
-                  mode === m ? 'text-background' : 'text-muted-foreground hover:text-foreground'
+                className={`relative rounded-[6px] py-2 text-xs font-medium transition-colors ${
+                  mode === m ? 'text-brand-navy-900' : 'text-brand-navy-700 hover:text-brand-navy-900'
                 }`}
               >
                 {mode === m && (
                   <motion.div
                     layoutId="auth-tab"
-                    className="absolute inset-0 rounded-lg bg-foreground"
+                    className="absolute inset-0 rounded-[6px] bg-white shadow-sm border border-brand-cream-border"
                     transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
                   />
                 )}
@@ -123,16 +104,16 @@ export function AuthScreen() {
                   exit={{ opacity: 0, height: 0 }}
                   className="overflow-hidden"
                 >
-                  <Label htmlFor="name" className="text-xs">Full name</Label>
+                  <Label htmlFor="name" className="text-xs text-brand-navy-900 font-medium">Full name</Label>
                   <div className="relative mt-1.5">
-                    <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-navy-700" />
                     <Input
                       id="name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Rahul Sharma"
                       required
-                      className="rounded-xl pl-9"
+                      className="rounded-[8px] pl-9 border-brand-cream-border focus-visible:ring-brand-terracotta"
                     />
                   </div>
                 </motion.div>
@@ -140,9 +121,9 @@ export function AuthScreen() {
             </AnimatePresence>
 
             <div>
-              <Label htmlFor="email" className="text-xs">Email</Label>
+              <Label htmlFor="email" className="text-xs text-brand-navy-900 font-medium">Email</Label>
               <div className="relative mt-1.5">
-                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-navy-700" />
                 <Input
                   id="email"
                   type="email"
@@ -150,15 +131,15 @@ export function AuthScreen() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@company.com"
                   required
-                  className="rounded-xl pl-9"
+                  className="rounded-[8px] pl-9 border-brand-cream-border focus-visible:ring-brand-terracotta"
                 />
               </div>
             </div>
 
             <div>
-              <Label htmlFor="password" className="text-xs">Password</Label>
+              <Label htmlFor="password" className="text-xs text-brand-navy-900 font-medium">Password</Label>
               <div className="relative mt-1.5">
-                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-navy-700" />
                 <Input
                   id="password"
                   type="password"
@@ -166,7 +147,7 @@ export function AuthScreen() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={mode === 'signup' ? 'Min 6 characters' : '••••••••'}
                   required
-                  className="rounded-xl pl-9"
+                  className="rounded-[8px] pl-9 border-brand-cream-border focus-visible:ring-brand-terracotta"
                 />
               </div>
             </div>
@@ -174,7 +155,7 @@ export function AuthScreen() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl"
+              className="w-full rounded-[8px] bg-brand-terracotta hover:bg-brand-terracotta/90 text-white"
               size="lg"
             >
               {loading ? (

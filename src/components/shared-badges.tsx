@@ -15,7 +15,7 @@ export function DocTypeBadge({ type }: { type: string | null | undefined }) {
   const meta = getDocTypeMeta(type)
   const colors = COLOR_CLASSES[meta.color]
   return (
-    <Badge variant="outline" className={`${colors.badge} border-transparent font-medium`}>
+    <Badge variant="outline" className={`${colors.badge} border font-medium rounded-[4px]`}>
       {meta.label}
     </Badge>
   )
@@ -25,7 +25,7 @@ export function StatusBadge({ status }: { status: string | null | undefined }) {
   const meta = getStatusMeta(status)
   const colors = COLOR_CLASSES[meta.color]
   return (
-    <Badge variant="outline" className={`${colors.badge} border-transparent font-medium`}>
+    <Badge variant="outline" className={`${colors.badge} border font-medium rounded-[4px]`}>
       <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${colors.dot}`} />
       {meta.label}
     </Badge>
@@ -36,7 +36,7 @@ export function FraudRiskBadge({ risk }: { risk: string | null | undefined }) {
   const meta = getFraudRiskMeta(risk)
   const colors = COLOR_CLASSES[meta.color]
   return (
-    <Badge variant="outline" className={`${colors.badge} border-transparent font-medium`}>
+    <Badge variant="outline" className={`${colors.badge} border font-medium rounded-[4px]`}>
       {meta.label} Risk
     </Badge>
   )

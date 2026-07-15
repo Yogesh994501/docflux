@@ -96,21 +96,22 @@ export function UploadSection() {
       </AnimatePresence>
       {/* Hero dropzone */}
       <FadeInUp>
-        <SpotlightCard className="p-0 overflow-hidden">
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={onDrop}
-            onClick={() => inputRef.current?.click()}
-            className={`relative cursor-pointer rounded-2xl p-10 text-center transition-all sm:p-16 ${dragOver ? 'bg-foreground/[0.03]' : ''}`}
-          >
-            <input ref={inputRef} type="file" accept={ACCEPTED} multiple className="hidden" onChange={(e) => { if (e.target.files) handleFiles(e.target.files); e.target.value = '' }} />
-            <motion.div
-              animate={{ y: dragOver ? -4 : 0 }}
-              className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-foreground text-background shadow-lg"
+        <div className="grid md:grid-cols-5 gap-8 items-center">
+          <SpotlightCard className="p-0 overflow-hidden md:col-span-3">
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={onDrop}
+              onClick={() => inputRef.current?.click()}
+              className={`relative cursor-pointer rounded-2xl p-10 text-center transition-all sm:p-16 ${dragOver ? 'bg-brand-cream' : ''}`}
             >
-              <UploadCloud className="h-7 w-7" />
-            </motion.div>
+              <input ref={inputRef} type="file" accept={ACCEPTED} multiple className="hidden" onChange={(e) => { if (e.target.files) handleFiles(e.target.files); e.target.value = '' }} />
+              <motion.div
+                animate={{ y: dragOver ? -4 : 0 }}
+                className="mx-auto flex h-16 w-16 items-center justify-center rounded-[14px] bg-brand-terracotta-tint text-brand-terracotta shadow-sm"
+              >
+                <UploadCloud className="h-7 w-7" />
+              </motion.div>
             <h3 className="mt-5 text-lg font-semibold tracking-tight">
               Drop documents here, or <span className="underline decoration-foreground/30 underline-offset-4">browse</span>
             </h3>
@@ -123,8 +124,16 @@ export function UploadSection() {
               ))}
               <span className="rounded-full border border-border/60 bg-card/60 px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground">Max 10 MB</span>
             </div>
+            </div>
+          </SpotlightCard>
+          <div className="hidden md:block md:col-span-2 relative h-full min-h-[250px]">
+            <img 
+              src="/brand/mobile-capture.jpeg" 
+              alt="Mobile scanning" 
+              className="absolute inset-0 w-full h-full object-cover rounded-[14px] shadow-editorial"
+            />
           </div>
-        </SpotlightCard>
+        </div>
       </FadeInUp>
 
       {/* How it works */}
@@ -137,12 +146,12 @@ export function UploadSection() {
           <StaggerItem key={s.title}>
             <SpotlightCard className="p-4 h-full">
               <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-foreground/[0.06] text-foreground">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-cream text-brand-navy-900 border border-brand-cream-border">
                   <s.icon className="h-4.5 w-4.5" />
                 </div>
                 <div>
-                  <div className="text-sm font-semibold">{s.title}</div>
-                  <div className="text-xs text-muted-foreground">{s.desc}</div>
+                  <div className="text-sm font-semibold font-serif text-brand-navy-900">{s.title}</div>
+                  <div className="text-xs text-brand-navy-700">{s.desc}</div>
                 </div>
               </div>
             </SpotlightCard>
