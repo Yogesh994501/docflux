@@ -115,3 +115,50 @@ Stage Summary:
   React-Bits-style components (SpotlightCard, AnimatedCounter, TiltCard, AuroraText).
 - Hamburger on left, status pills in header + sidebar, animated everything.
 - All data dynamic from API. ASSETS.md guides asset creation.
+
+---
+Task ID: 23-26
+Agent: orchestrator (Strands integration)
+Task: Integrate React Bits <Strands/> component — OCR engagement overlay, hamburger menu, dashboard ambient, fluid glass
+
+Work Log:
+- Installed ogl dependency (WebGL helper used by Strands).
+- Created src/components/strands.tsx — TypeScript port of React Bits Strands
+  component with full prop typing (colors, count, speed, amplitude, waviness,
+  thickness, glow, taper, spread, hueShift, intensity, saturation, opacity,
+  scale, glass, refraction, dispersion, glassSize, className, style).
+  Uses ogl Renderer/Program/Mesh/Color/Triangle/RenderTarget with WebGL2
+  shaders for flowing light strands + optional refractive glass ball.
+- Created src/components/strands.css (container + canvas sizing).
+- Built src/components/ocr-processing-overlay.tsx — full-screen fluid glass
+  experience shown while OCR runs. Layers:
+    * <Strands/> animated background (emerald/teal/violet/amber, 4 strands,
+      high glow) keeps user visually engaged during the 5-30s vision call.
+    * Dark veil + heavy backdrop blur for legibility.
+    * Frosted-glass card with file thumbnail, name, 4-stage progress
+      (Uploading → Scanning → OCR → Parsing), rotating status messages
+      ("Analyzing document layout…", "Recognizing characters…", etc.),
+      and live elapsed timer.
+- Wired overlay into UploadSection: triggers when any item has
+  status='uploading', disappears on completion.
+- Added Strands backdrop inside mobile hamburger Sheet (emerald/teal/violet,
+  3 strands, 50% opacity) behind the glass Sidebar for premium fluid feel.
+- Added subtle ambient Strands glow (18% opacity, 2 strands, slow) behind
+  the Dashboard hero greeting — awwwards-style premium touch.
+- Fixed missing Strands import in dashboard.tsx (was the reported error).
+- Verified with Agent Browser:
+  * Dashboard: 1 WebGL canvas rendering ambient Strands glow ✓
+  * OCR overlay: triggered on upload — shows Strands bg + glass card with
+    "AI vision OCR in progress", 4-stage progress, "Elapsed 10s",
+    "Keep watching — extraction is almost ready" ✓
+  * Hamburger menu: Strands canvas renders inside Sheet (canvasInSheet:1) ✓
+  * No console errors ✓, lint clean ✓
+
+Stage Summary:
+- <Strands/> from React Bits fully integrated (TypeScript port).
+- Three deployment sites: OCR engagement overlay, hamburger menu backdrop,
+  dashboard ambient hero glow.
+- Fluid glass effects: frosted-glass overlay card, glass sidebar with Strands
+  behind, premium layered blurs throughout.
+- User stays visually captivated during the full OCR pipeline (verified
+  end-to-end with a real upload).

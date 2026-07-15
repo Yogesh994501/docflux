@@ -47,6 +47,7 @@ import {
   FadeInUp,
   AuroraText,
 } from '@/components/motion-primitives'
+import Strands from '@/components/strands'
 
 const PIE_COLORS = ['#10b981', '#06b6d4', '#f59e0b', '#ec4899', '#8b5cf6', '#f43f5e', '#fb923c', '#14b8a6', '#64748b', '#a3e635']
 
