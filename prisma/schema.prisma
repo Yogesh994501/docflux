@@ -10,71 +10,87 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Documents ────────────────────────────────────────────────────────────────
+// ─── Users (local auth — used when Supabase is NOT configured) ────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  documents       Document[]
+  vendors         Vendor[]
+  copilotMessages CopilotMessage[]
+}
+
+// ─── Documents (scoped to a user) ─────────────────────────────────────────────
 
 model Document {
   id             String   @id @default(cuid())
   fileName       String
-  fileType       String   // mime type: image/jpeg, application/pdf, etc.
-  fileSize       Int      // bytes
-  storagePath    String   // relative path under /public/uploads
-  thumbnailPath  String?  // optional smaller preview
+  fileType       String
+  fileSize       Int
+  storagePath    String
+  thumbnailPath  String?
 
-  // Classification
-  documentType   String?  // GST_INVOICE | RECEIPT | GOVT_ID | E_BILL | PURCHASE_ORDER | DELIVERY_CHALLAN | CREDIT_NOTE | DEBIT_NOTE | BANK_STATEMENT | UNKNOWN
-  source         String   @default("web") // web | email | android
-  status         String   @default("UPLOADED") // UPLOADED | PROCESSING | EXTRACTED | APPROVED | REJECTED | FAILED
+  documentType   String?
+  source         String   @default("web")
+  status         String   @default("UPLOADED")
 
-  // OCR
-  ocrText        String?  // raw extracted text
-  ocrConfidence  Float?   // 0.0 - 1.0
+  ocrText        String?
+  ocrConfidence  Float?
   ocrLanguage    String?  @default("en")
+  extractedData  String?
 
-  // Structured extraction (JSON blob with vendor, gstin, invoiceNumber, etc.)
-  extractedData  String?  // JSON string of ExtractedData
-
-  // Workflow
-  fraudRisk      String?  // LOW | MEDIUM | HIGH
+  fraudRisk      String?
   approvalComments String?
   approvedBy     String?
 
-  // Relations
   vendorId       String?
   vendor         Vendor?  @relation(fields: [vendorId], references: [id])
 
-  // Timestamps
+  // Owner of this document
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   uploadedAt     DateTime @default(now())
   processedAt    DateTime?
   approvedAt     DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  // Audit
   auditLogs      AuditLog[]
 
   @@index([status])
   @@index([documentType])
   @@index([vendorId])
+  @@index([userId])
   @@index([uploadedAt])
 }
 
-// ─── Vendors / Customers (CRM-lite) ───────────────────────────────────────────
+// ─── Vendors / Customers (scoped to a user) ───────────────────────────────────
 
 model Vendor {
   id          String   @id @default(cuid())
   name        String
-  gstin       String?  // GST Identification Number (India)
-  pan         String?  // PAN number
+  gstin       String?
+  pan         String?
   email       String?
   phone       String?
   address     String?
-  category    String?  // supplier | customer | both
+  category    String?
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   documents   Document[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([name])
   @@index([gstin])
+  @@index([userId])
 }
 
 // ─── Audit Trail ──────────────────────────────────────────────────────────────
@@ -83,8 +99,8 @@ model AuditLog {
   id          String   @id @default(cuid())
   documentId  String
   document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  action      String   // UPLOADED | OCR_COMPLETED | EXTRACTED | APPROVED | REJECTED | EDITED | REPROCESSED
-  details     String?  // JSON string with context
+  action      String
+  details     String?
   actor       String?  @default("system")
   timestamp   DateTime @default(now())
 
@@ -92,13 +108,16 @@ model AuditLog {
   @@index([action])
 }
 
-// ─── AI Copilot Conversations ─────────────────────────────────────────────────
+// ─── AI Copilot Conversations (scoped to a user) ──────────────────────────────
 
 model CopilotMessage {
   id          String   @id @default(cuid())
-  role        String   // user | assistant
+  role        String
   content     String
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
 
   @@index([createdAt])
+  @@index([userId])
 }

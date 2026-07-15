@@ -17,19 +17,19 @@ import type {
 
 export interface SupabaseRepo {
   listDocuments(params: DocListParams): Promise<{ items: DocumentRow[]; total: number }>
-  getDocument(id: string): Promise<DocumentRow | null>
+  getDocument(id: string, userId?: string): Promise<DocumentRow | null>
   createDocument(data: any): Promise<DocumentRow>
   updateDocument(id: string, data: Record<string, unknown>): Promise<DocumentRow | null>
   deleteDocument(id: string): Promise<void>
   createAuditLog(data: { documentId: string; action: string; details?: string | null; actor?: string | null }): Promise<void>
-  listVendors(search?: string): Promise<VendorRow[]>
+  listVendors(search?: string, userId?: string): Promise<VendorRow[]>
   createVendor(data: any): Promise<VendorRow>
-  findVendorByGstin(gstin: string): Promise<VendorRow | null>
-  findVendorByName(name: string): Promise<VendorRow | null>
-  listCopilotMessages(limit?: number): Promise<CopilotMessageRow[]>
-  createCopilotMessage(role: string, content: string): Promise<void>
-  clearAll(): Promise<void>
-  groupBy(field: 'documentType' | 'status' | 'fraudRisk'): Promise<{ key: string | null; count: number }[]>
+  findVendorByGstin(gstin: string, userId?: string): Promise<VendorRow | null>
+  findVendorByName(name: string, userId?: string): Promise<VendorRow | null>
+  listCopilotMessages(limit?: number, userId?: string): Promise<CopilotMessageRow[]>
+  createCopilotMessage(role: string, content: string, userId?: string): Promise<void>
+  clearAll(userId?: string): Promise<void>
+  groupBy(field: 'documentType' | 'status' | 'fraudRisk', userId?: string): Promise<{ key: string | null; count: number }[]>
 }
 
 let client: SupabaseClient | null = null
@@ -111,6 +111,7 @@ export function createSupabaseBackend(): SupabaseRepo {
       const sb = getClient()
       let query = sb.from('documents').select('*, vendor:vendors(*)', { count: 'exact' })
 
+      if (params.userId) query = query.eq('user_id', params.userId)
       if (params.status) query = query.eq('status', params.status)
       if (params.documentType) query = query.eq('document_type', params.documentType)
       if (params.fraudRisk) query = query.eq('fraud_risk', params.fraudRisk)
@@ -128,14 +129,15 @@ export function createSupabaseBackend(): SupabaseRepo {
       }
     },
 
-    async getDocument(id) {
+    async getDocument(id, userId) {
       const sb = getClient()
-      const { data, error } = await sb
+      let query = sb
         .from('documents')
         .select('*, vendor:vendors(*), audit_logs(*)')
         .eq('id', id)
         .order('timestamp', { referencedTable: 'audit_logs', ascending: true })
-        .single()
+      if (userId) query = query.eq('user_id', userId)
+      const { data, error } = await query.single()
       if (error) {
         if (error.code === 'PGRST116') return null
         throw new Error(`Supabase getDocument: ${error.message}`)
@@ -155,6 +157,7 @@ export function createSupabaseBackend(): SupabaseRepo {
         document_type: d.documentType ?? null,
         source: d.source,
         status: d.status,
+        user_id: d.userId,
       }
       const { data, error } = await sb.from('documents').insert(insert).select('*, vendor:vendors(*)').single()
       if (error) throw new Error(`Supabase createDocument: ${error.message}`)
@@ -204,9 +207,10 @@ export function createSupabaseBackend(): SupabaseRepo {
       if (error) throw new Error(`Supabase createAuditLog: ${error.message}`)
     },
 
-    async listVendors(search) {
+    async listVendors(search, userId) {
       const sb = getClient()
       let query = sb.from('vendors').select('*, documents(id)')
+      if (userId) query = query.eq('user_id', userId)
       if (search) {
         query = query.or(`name.ilike.%${search}%,gstin.ilike.%${search}%,email.ilike.%${search}%`)
       }
@@ -218,7 +222,6 @@ export function createSupabaseBackend(): SupabaseRepo {
       for (const v of data ?? []) {
         const docs = v.documents ?? []
         let totalSpend = 0
-        // Fetch extracted data for spend calc
         const { data: docData } = await sb.from('documents').select('extracted_data').eq('vendor_id', v.id)
         for (const d of docData ?? []) {
           if (d.extracted_data) {
@@ -244,28 +247,35 @@ export function createSupabaseBackend(): SupabaseRepo {
         phone: d.phone ?? null,
         address: d.address ?? null,
         category: d.category ?? 'supplier',
+        user_id: d.userId,
       }).select().single()
       if (error) throw new Error(`Supabase createVendor: ${error.message}`)
       return mapVendor(data, 0, 0)
     },
 
-    async findVendorByGstin(gstin) {
+    async findVendorByGstin(gstin, userId) {
       const sb = getClient()
-      const { data, error } = await sb.from('vendors').select('*').eq('gstin', gstin).maybeSingle()
+      let query = sb.from('vendors').select('*').eq('gstin', gstin)
+      if (userId) query = query.eq('user_id', userId)
+      const { data, error } = await query.maybeSingle()
       if (error) throw new Error(`Supabase findVendorByGstin: ${error.message}`)
       return data ? mapVendor(data) : null
     },
 
-    async findVendorByName(name) {
+    async findVendorByName(name, userId) {
       const sb = getClient()
-      const { data, error } = await sb.from('vendors').select('*').ilike('name', `%${name}%`).maybeSingle()
+      let query = sb.from('vendors').select('*').ilike('name', `%${name}%`)
+      if (userId) query = query.eq('user_id', userId)
+      const { data, error } = await query.maybeSingle()
       if (error) throw new Error(`Supabase findVendorByName: ${error.message}`)
       return data ? mapVendor(data) : null
     },
 
-    async listCopilotMessages(limit = 50) {
+    async listCopilotMessages(limit = 50, userId) {
       const sb = getClient()
-      const { data, error } = await sb.from('copilot_messages').select('*').order('created_at', { ascending: true }).limit(limit)
+      let query = sb.from('copilot_messages').select('*').order('created_at', { ascending: true }).limit(limit)
+      if (userId) query = query.eq('user_id', userId)
+      const { data, error } = await query
       if (error) throw new Error(`Supabase listCopilotMessages: ${error.message}`)
       return (data ?? []).map((m: any) => ({
         id: m.id,
@@ -275,24 +285,33 @@ export function createSupabaseBackend(): SupabaseRepo {
       }))
     },
 
-    async createCopilotMessage(role, content) {
+    async createCopilotMessage(role, content, userId) {
       const sb = getClient()
-      const { error } = await sb.from('copilot_messages').insert({ role, content })
+      const { error } = await sb.from('copilot_messages').insert({ role, content, user_id: userId ?? null })
       if (error) throw new Error(`Supabase createCopilotMessage: ${error.message}`)
     },
 
-    async clearAll() {
+    async clearAll(userId) {
       const sb = getClient()
-      await sb.from('audit_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-      await sb.from('documents').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-      await sb.from('vendors').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-      await sb.from('copilot_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      if (userId) {
+        await sb.from('audit_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await sb.from('documents').delete().eq('user_id', userId)
+        await sb.from('vendors').delete().eq('user_id', userId)
+        await sb.from('copilot_messages').delete().eq('user_id', userId)
+      } else {
+        await sb.from('audit_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await sb.from('documents').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await sb.from('vendors').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await sb.from('copilot_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      }
     },
 
-    async groupBy(field) {
+    async groupBy(field, userId) {
       const sb = getClient()
       const column = field === 'documentType' ? 'document_type' : field === 'fraudRisk' ? 'fraud_risk' : 'status'
-      const { data, error } = await sb.from('documents').select(column)
+      let query = sb.from('documents').select(column)
+      if (userId) query = query.eq('user_id', userId)
+      const { data, error } = await query
       if (error) throw new Error(`Supabase groupBy: ${error.message}`)
       const counts = new Map<string, number>()
       for (const row of data ?? []) {

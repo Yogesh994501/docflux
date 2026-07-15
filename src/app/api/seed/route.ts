@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { repo } from '@/lib/repository'
+import { auth } from '@/lib/auth'
 import { ok, err } from '@/lib/constants'
 
-// Seed sample vendors + demo documents with pre-extracted data so the dashboard
-// is populated immediately. Real OCR runs when the user uploads their own files.
+// Seed sample vendors + demo documents for the current user so the dashboard
+// is populated. Real OCR runs when the user uploads their own files.
 export async function POST(_req: NextRequest) {
   try {
-    await repo.clearAll()
+    const user = await auth.requireUser()
+    await repo.clearAll(user.id)
 
     const now = new Date()
     const iso = (offsetDays: number) => new Date(now.getTime() - offsetDays * 24 * 60 * 60 * 1000).toISOString()
 
-    // ─── Vendors ──────────────────────────────────────────────────────────────
-    const technova = await repo.createVendor({ name: 'TechNova Solutions Pvt Ltd', gstin: '27AABCT1332L1ZJ', pan: 'AABCT1332L', email: 'accounts@technova.in', phone: '+91 22 4567 8901', address: '14, IT Park, Hinjewadi Phase 2, Pune, Maharashtra 411057', category: 'supplier' })
-    const bluepeak = await repo.createVendor({ name: 'BluePeak Office Supplies', gstin: '29AAFCB7894K1ZP', pan: 'AAFCB7894K', email: 'billing@bluepeak.co.in', phone: '+91 80 2345 6789', address: 'MG Road, Bengaluru, Karnataka 560001', category: 'supplier' })
-    const msedcl = await repo.createVendor({ name: 'Mumbai Electricity Board (MSEDCL)', gstin: '27AAACM7891L1Z5', pan: 'AAACM7891L', email: 'care@msedcl.in', phone: '19120', address: '4th Floor, Prakashgad, Bandra East, Mumbai 400051', category: 'supplier' })
-    const cloudverse = await repo.createVendor({ name: 'CloudVerse Hosting', gstin: '07AANCC9821P1ZK', pan: 'AANCC9821P', email: 'finance@cloudverse.com', phone: '+91 11 4567 1234', address: 'Cyber City, DLF Phase 3, Gurugram, Haryana 122002', category: 'supplier' })
-    const acme = await repo.createVendor({ name: 'Acme Logistics Pvt Ltd', gstin: '33AAGCA1234M1Z9', pan: 'AAGCA1234M', email: 'ops@acmelogistics.in', phone: '+91 44 9876 5432', address: 'Port Trust Road, Chennai, Tamil Nadu 600001', category: 'supplier' })
+    const technova = await repo.createVendor({ name: 'TechNova Solutions Pvt Ltd', gstin: '27AABCT1332L1ZJ', pan: 'AABCT1332L', email: 'accounts@technova.in', phone: '+91 22 4567 8901', address: '14, IT Park, Hinjewadi Phase 2, Pune, Maharashtra 411057', category: 'supplier', userId: user.id })
+    const bluepeak = await repo.createVendor({ name: 'BluePeak Office Supplies', gstin: '29AAFCB7894K1ZP', pan: 'AAFCB7894K', email: 'billing@bluepeak.co.in', phone: '+91 80 2345 6789', address: 'MG Road, Bengaluru, Karnataka 560001', category: 'supplier', userId: user.id })
+    const msedcl = await repo.createVendor({ name: 'Mumbai Electricity Board (MSEDCL)', gstin: '27AAACM7891L1Z5', pan: 'AAACM7891L', email: 'care@msedcl.in', phone: '19120', address: '4th Floor, Prakashgad, Bandra East, Mumbai 400051', category: 'supplier', userId: user.id })
+    const cloudverse = await repo.createVendor({ name: 'CloudVerse Hosting', gstin: '07AANCC9821P1ZK', pan: 'AANCC9821P', email: 'finance@cloudverse.com', phone: '+91 11 4567 1234', address: 'Cyber City, DLF Phase 3, Gurugram, Haryana 122002', category: 'supplier', userId: user.id })
+    const acme = await repo.createVendor({ name: 'Acme Logistics Pvt Ltd', gstin: '33AAGCA1234M1Z9', pan: 'AAGCA1234M', email: 'ops@acmelogistics.in', phone: '+91 44 9876 5432', address: 'Port Trust Road, Chennai, Tamil Nadu 600001', category: 'supplier', userId: user.id })
 
     const samples = [
       {
@@ -79,9 +80,9 @@ export async function POST(_req: NextRequest) {
         documentType: s.documentType,
         source: 'seed',
         status: s.status,
+        userId: user.id,
       })
 
-      // Update with OCR + extraction + vendor + timestamps
       await repo.updateDocument(created.id, {
         ocrText: s.ocrText,
         ocrConfidence: s.ocrConfidence,
@@ -91,7 +92,7 @@ export async function POST(_req: NextRequest) {
         fraudRisk: s.fraudRisk,
         status: s.status,
         approvalComments: s.approvalComments ?? null,
-        approvedBy: s.status === 'APPROVED' ? 'admin' : null,
+        approvedBy: s.status === 'APPROVED' ? user.email : null,
         approvedAt: s.status === 'APPROVED' ? s.uploadedAt : null,
         vendorId: s.vendorId,
         processedAt: s.uploadedAt,
@@ -101,13 +102,14 @@ export async function POST(_req: NextRequest) {
       await repo.createAuditLog({ documentId: created.id, action: 'UPLOADED', details: JSON.stringify({ source: 'seed' }) })
       await repo.createAuditLog({ documentId: created.id, action: 'EXTRACTED', details: JSON.stringify({ type: s.documentType, confidence: s.ocrConfidence }) })
       if (s.status === 'APPROVED') {
-        await repo.createAuditLog({ documentId: created.id, action: 'APPROVED', details: JSON.stringify({ comments: s.approvalComments }), actor: 'admin' })
+        await repo.createAuditLog({ documentId: created.id, action: 'APPROVED', details: JSON.stringify({ comments: s.approvalComments }), actor: user.email })
       }
     }
 
     return NextResponse.json(ok({ vendors: 5, documents: samples.length }))
   } catch (e) {
     console.error('[POST /api/seed]', e)
-    return NextResponse.json(err('Seed failed: ' + (e as Error).message), { status: 500 })
+    const status = (e as Error).message === 'Unauthorized' ? 401 : 500
+    return NextResponse.json(err('Seed failed: ' + (e as Error).message), { status })
   }
 }

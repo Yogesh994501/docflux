@@ -15,10 +15,12 @@ import {
   Sun,
   Database,
   Cpu,
+  UserCircle,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { useStatusQuery } from '@/lib/queries'
+import { useAuth } from '@/components/auth-provider'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const NAV: { id: Section; label: string; icon: typeof LayoutDashboard; desc: string }[] = [
@@ -29,12 +31,14 @@ const NAV: { id: Section; label: string; icon: typeof LayoutDashboard; desc: str
   { id: 'vendors', label: 'Vendors', icon: Building2, desc: 'Supplier CRM' },
   { id: 'analytics', label: 'Analytics', icon: BarChart3, desc: 'Spend & trends' },
   { id: 'copilot', label: 'AI Copilot', icon: Sparkles, desc: 'Ask anything' },
+  { id: 'profile', label: 'Profile', icon: UserCircle, desc: 'Account & settings' },
 ]
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { section, setSection } = useAppStore()
   const { theme, setTheme } = useTheme()
   const { data: status } = useStatusQuery()
+  const { user } = useAuth()
 
   return (
     <div className="flex h-full flex-col sidebar-glass">
@@ -96,6 +100,29 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           )
         })}
       </nav>
+
+      {/* User card — click to open profile */}
+      {user && (
+        <div className="px-3 pb-1">
+          <button
+            onClick={() => { setSection('profile'); onNavigate?.() }}
+            className={cn(
+              'flex w-full items-center gap-2.5 rounded-xl border p-2.5 text-left transition-all',
+              section === 'profile'
+                ? 'border-foreground/20 bg-foreground/[0.06]'
+                : 'border-border/60 bg-card/50 hover:bg-accent/50',
+            )}
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-foreground text-xs font-semibold text-background">
+              {user.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-xs font-medium">{user.name}</div>
+              <div className="truncate text-[10px] text-muted-foreground">{user.email}</div>
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* System status */}
       <div className="px-3 py-3">
