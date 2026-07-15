@@ -1,16 +1,25 @@
 /**
- * AI library — OCR + structured field extraction via VLM (z-ai-web-dev-sdk)
+ * AI library — OCR + structured field extraction
  *
- * Strategy: a single VLM call reads the uploaded document image and returns BOTH
- *   1) raw OCR text (preserving layout)
- *   2) structured JSON fields (vendor, gstin, amounts, line items, ...)
+ * Supports TWO vision providers (switchable via OCR_PROVIDER env var):
  *
- * This replaces the Tesseract + LLM combo from the original AutoFinDocs spec and
- * works for receipts, government IDs, GST invoices, purchase orders, delivery
- * challans, e-bills, credit/debit notes, bank statements, etc.
+ * 1. **Google Gemini 2.5 Flash** (OCR_PROVIDER="gemini") — Google's fast
+ *    multimodal model. Excellent at document OCR + structured extraction.
+ *    Requires GEMINI_API_KEY. Uses @google/genai SDK.
+ *
+ * 2. **Z.ai GLM-4.6V** (OCR_PROVIDER="zai", default) — Z.ai's vision model,
+ *    available via z-ai-web-dev-sdk. No API key needed in this environment.
+ *
+ * Both providers return the same OcrResult shape so the rest of the app is
+ * provider-agnostic.
+ *
+ * Strategy: a single vision call reads the uploaded document image and returns
+ * BOTH raw OCR text AND structured JSON fields (vendor, gstin, amounts, line
+ * items, fraud indicators) in one shot.
  */
 
 import ZAI from 'z-ai-web-dev-sdk'
+import { GoogleGenAI } from '@google/genai'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -35,12 +44,11 @@ export interface LineItem {
   quantity?: number | string
   rate?: number | string
   amount?: number | string
-  hsn?: string // HSN/SAC code (India)
+  hsn?: string
 }
 
 export interface ExtractedData {
   documentType: DocumentType
-  // Parties
   vendorName?: string
   vendorGstin?: string
   vendorAddress?: string
@@ -49,11 +57,9 @@ export interface ExtractedData {
   customerName?: string
   customerGstin?: string
   customerAddress?: string
-  // Identifiers
   invoiceNumber?: string
   invoiceDate?: string
   dueDate?: string
-  // Money (all as strings to preserve formatting / currency symbols)
   currency?: string
   subtotal?: string
   taxAmount?: string
@@ -61,24 +67,19 @@ export interface ExtractedData {
   sgst?: string
   igst?: string
   totalAmount?: string
-  // For government IDs
-  idType?: string // PAN | AADHAAR | PASSPORT | DRIVING_LICENSE | VOTER_ID
+  idType?: string
   idNumber?: string
   idHolderName?: string
   idDateOfBirth?: string
-  // For bank statements
   bankName?: string
   accountNumber?: string
   ifscCode?: string
   statementPeriod?: string
-  // Line items
-  lineItems?: LineItem[]
-  // Misc
   poNumber?: string
   deliveryChallanNumber?: string
   paymentMethod?: string
   notes?: string
-  // Quality signals
+  lineItems?: LineItem[]
   fraudIndicators?: string[]
   fraudRisk: FraudRisk
 }
@@ -87,20 +88,41 @@ export interface OcrResult {
   ocrText: string
   confidence: number
   extracted: ExtractedData
+  provider: 'gemini' | 'zai'
 }
 
-// ─── VLM instance caching ────────────────────────────────────────────────────
+// ─── Provider selection ──────────────────────────────────────────────────────
+
+type OcrProvider = 'gemini' | 'zai'
+
+function getProvider(): OcrProvider {
+  const configured = (process.env.OCR_PROVIDER ?? 'zai').toLowerCase() as OcrProvider
+  if (configured === 'gemini' && process.env.GEMINI_API_KEY) return 'gemini'
+  // Fallback: if gemini requested but no key, use zai
+  return 'zai'
+}
+
+export function getActiveProvider(): OcrProvider {
+  return getProvider()
+}
+
+// ─── VLM instances (cached) ──────────────────────────────────────────────────
 
 let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null
-
 async function getZai() {
-  if (!zaiInstance) {
-    zaiInstance = await ZAI.create()
-  }
+  if (!zaiInstance) zaiInstance = await ZAI.create()
   return zaiInstance
 }
 
-// ─── Prompt ───────────────────────────────────────────────────────────────────
+let geminiInstance: GoogleGenAI | null = null
+function getGemini() {
+  if (!geminiInstance) {
+    geminiInstance = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
+  }
+  return geminiInstance
+}
+
+// ─── Shared extraction prompt ────────────────────────────────────────────────
 
 const EXTRACTION_PROMPT = `You are an expert document analysis AI specialized in Indian and international financial documents.
 
@@ -177,41 +199,66 @@ Return your answer as STRICT JSON with this exact structure (no markdown, no cod
 
 // ─── Image → base64 helper ────────────────────────────────────────────────────
 
-async function fileToBase64(filePath: string, mimeType: string): Promise<string> {
+async function fileToBase64(filePath: string, mimeType: string): Promise<{ data: string; mimeType: string }> {
   const buf = await fs.readFile(filePath)
-  return `data:${mimeType};base64,${buf.toString('base64')}`
+  return { data: buf.toString('base64'), mimeType }
 }
 
 function getMimeType(fileName: string): string {
   const ext = path.extname(fileName).toLowerCase()
   switch (ext) {
     case '.jpg':
-    case '.jpeg':
-      return 'image/jpeg'
-    case '.png':
-      return 'image/png'
-    case '.webp':
-      return 'image/webp'
-    case '.gif':
-      return 'image/gif'
-    case '.bmp':
-      return 'image/bmp'
-    case '.pdf':
-      return 'application/pdf'
-    default:
-      return 'image/jpeg'
+    case '.jpeg': return 'image/jpeg'
+    case '.png': return 'image/png'
+    case '.webp': return 'image/webp'
+    case '.gif': return 'image/gif'
+    case '.bmp': return 'image/bmp'
+    case '.pdf': return 'application/pdf'
+    default: return 'image/jpeg'
   }
 }
 
-// ─── Main OCR + extraction function ───────────────────────────────────────────
+// ─── Gemini Flash OCR ────────────────────────────────────────────────────────
 
-export async function processDocument(
+async function processWithGemini(
   filePath: string,
   fileName: string,
 ): Promise<OcrResult> {
   const mimeType = getMimeType(fileName)
-  const dataUrl = await fileToBase64(filePath, mimeType)
+  const { data, mimeType: mt } = await fileToBase64(filePath, mimeType)
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+  const ai = getGemini()
 
+  const response = await ai.models.generateContent({
+    model,
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: EXTRACTION_PROMPT },
+          { inlineData: { data, mimeType: mt } },
+        ],
+      },
+    ],
+    config: {
+      temperature: 0.1,
+      maxOutputTokens: 8192,
+      responseMimeType: 'application/json',
+    },
+  })
+
+  const raw = response.text ?? ''
+  return parseOcrResponse(raw, 'gemini')
+}
+
+// ─── Z.ai GLM-4.6V OCR ───────────────────────────────────────────────────────
+
+async function processWithZai(
+  filePath: string,
+  fileName: string,
+): Promise<OcrResult> {
+  const mimeType = getMimeType(fileName)
+  const { data, mimeType: mt } = await fileToBase64(filePath, mimeType)
   const zai = await getZai()
 
   const response = await zai.chat.completions.createVision({
@@ -220,7 +267,7 @@ export async function processDocument(
         role: 'user',
         content: [
           { type: 'text', text: EXTRACTION_PROMPT },
-          { type: 'image_url', image_url: { url: dataUrl } },
+          { type: 'image_url', image_url: { url: `data:${mt};base64,${data}` } },
         ],
       },
     ],
@@ -228,8 +275,12 @@ export async function processDocument(
   })
 
   const raw = response.choices[0]?.message?.content ?? ''
+  return parseOcrResponse(raw, 'zai')
+}
 
-  // The model may wrap JSON in markdown fences despite instructions — strip them.
+// ─── Shared response parser ──────────────────────────────────────────────────
+
+function parseOcrResponse(raw: string, provider: 'gemini' | 'zai'): OcrResult {
   const cleaned = raw
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```\s*$/i, '')
@@ -239,7 +290,6 @@ export async function processDocument(
   try {
     parsed = JSON.parse(cleaned) as OcrResult
   } catch {
-    // Fallback: keep raw text as OCR, mark as unknown
     parsed = {
       ocrText: raw,
       confidence: 0.3,
@@ -248,21 +298,37 @@ export async function processDocument(
         fraudRisk: 'MEDIUM',
         fraudIndicators: ['Model returned non-JSON response'],
       },
+      provider,
     }
   }
 
-  // Safety defaults
-  if (!parsed.extracted) {
-    parsed.extracted = { documentType: 'UNKNOWN', fraudRisk: 'MEDIUM' }
-  }
+  if (!parsed.extracted) parsed.extracted = { documentType: 'UNKNOWN', fraudRisk: 'MEDIUM' }
   if (!parsed.extracted.documentType) parsed.extracted.documentType = 'UNKNOWN'
   if (!parsed.extracted.fraudRisk) parsed.extracted.fraudRisk = 'LOW'
   if (typeof parsed.confidence !== 'number') parsed.confidence = 0.8
-
+  parsed.provider = provider
   return parsed
 }
 
-// ─── Copilot chat (LLM) ───────────────────────────────────────────────────────
+// ─── Main OCR + extraction entry point ───────────────────────────────────────
+
+export async function processDocument(
+  filePath: string,
+  fileName: string,
+): Promise<OcrResult> {
+  const provider = getProvider()
+  if (provider === 'gemini') {
+    try {
+      return await processWithGemini(filePath, fileName)
+    } catch (e) {
+      console.error('[Gemini OCR failed, falling back to Z.ai]', e)
+      return await processWithZai(filePath, fileName)
+    }
+  }
+  return await processWithZai(filePath, fileName)
+}
+
+// ─── Copilot chat (LLM — always Z.ai) ────────────────────────────────────────
 
 export async function copilotChat(
   messages: { role: 'user' | 'assistant'; content: string }[],

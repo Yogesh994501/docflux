@@ -1,81 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { repo } from '@/lib/repository'
 import { ok, err } from '@/lib/constants'
 
 export async function GET(_req: NextRequest) {
   try {
-    const [
-      total,
-      approved,
-      rejected,
-      pending,
-      processing,
-      extracted,
-      failed,
-    ] = await Promise.all([
-      db.document.count(),
-      db.document.count({ where: { status: 'APPROVED' } }),
-      db.document.count({ where: { status: 'REJECTED' } }),
-      db.document.count({ where: { status: 'EXTRACTED' } }),
-      db.document.count({ where: { status: 'PROCESSING' } }),
-      db.document.count({ where: { status: 'EXTRACTED' } }),
-      db.document.count({ where: { status: 'FAILED' } }),
+    // Counts via groupBy
+    const [statusGroups, typeGroups, fraudGroups] = await Promise.all([
+      repo.groupBy('status'),
+      repo.groupBy('documentType'),
+      repo.groupBy('fraudRisk'),
     ])
 
-    // Document type distribution
-    const typeGroups = await db.document.groupBy({
-      by: ['documentType'],
-      _count: true,
-    })
+    const countOf = (groups: { key: string | null; count: number }[], key: string) =>
+      groups.find((g) => g.key === key)?.count ?? 0
 
-    // Status distribution
-    const statusGroups = await db.document.groupBy({
-      by: ['status'],
-      _count: true,
-    })
+    const total = statusGroups.reduce((a, g) => a + g.count, 0)
 
-    // Fraud risk distribution
-    const fraudGroups = await db.document.groupBy({
-      by: ['fraudRisk'],
-      _count: true,
-    })
-
-    // Vendor breakdown (top by doc count + total spend)
-    const vendorDocs = await db.document.findMany({
-      where: { vendorId: { not: null } },
-      select: { vendorId: true, extractedData: true, vendor: { select: { name: true } } },
-    })
-
-    const vendorMap = new Map<string, { name: string; count: number; totalSpend: number }>()
-    for (const d of vendorDocs) {
-      if (!d.vendorId || !d.vendor) continue
-      const key = d.vendorId
-      const entry = vendorMap.get(key) ?? { name: d.vendor.name, count: 0, totalSpend: 0 }
-      entry.count += 1
-      // try to parse total amount
-      if (d.extractedData) {
-        try {
-          const data = JSON.parse(d.extractedData)
-          const amt = parseFloat(String(data.totalAmount ?? '0').replace(/[^0-9.]/g, ''))
-          if (!isNaN(amt)) entry.totalSpend += amt
-        } catch { /* ignore */ }
-      }
-      vendorMap.set(key, entry)
-    }
-    const topVendors = Array.from(vendorMap.values())
+    // Vendors + their docs (for spend)
+    const vendors = await repo.listVendors()
+    const topVendors = vendors
+      .map((v) => ({ name: v.name, count: v.documentCount ?? 0, totalSpend: v.totalSpend ?? 0 }))
+      .filter((v) => v.totalSpend > 0)
       .sort((a, b) => b.totalSpend - a.totalSpend)
       .slice(0, 8)
+
+    const totalSpend = vendors.reduce((a, v) => a + (v.totalSpend ?? 0), 0)
 
     // Spend trend (last 6 months)
     const now = new Date()
     const months: { label: string; spend: number; count: number }[] = []
+    const { items: allDocs } = await repo.listDocuments({ page: 1, pageSize: 1000 })
     for (let i = 5; i >= 0; i--) {
       const start = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
-      const monthDocs = await db.document.findMany({
-        where: { uploadedAt: { gte: start, lt: end } },
-        select: { extractedData: true },
-      })
+      const monthDocs = allDocs.filter(
+        (d) => new Date(d.uploadedAt) >= start && new Date(d.uploadedAt) < end,
+      )
       let spend = 0
       for (const d of monthDocs) {
         if (d.extractedData) {
@@ -93,26 +53,19 @@ export async function GET(_req: NextRequest) {
       })
     }
 
-    // Total spend (all time)
-    let totalSpend = 0
-    for (const v of vendorMap.values()) totalSpend += v.totalSpend
-
     return NextResponse.json(ok({
       counts: {
-        total, approved, rejected, pending, processing, extracted, failed,
+        total,
+        approved: countOf(statusGroups, 'APPROVED'),
+        rejected: countOf(statusGroups, 'REJECTED'),
+        pending: countOf(statusGroups, 'EXTRACTED'),
+        processing: countOf(statusGroups, 'PROCESSING'),
+        extracted: countOf(statusGroups, 'EXTRACTED'),
+        failed: countOf(statusGroups, 'FAILED'),
       },
-      typeDistribution: typeGroups.map((g) => ({
-        type: g.documentType ?? 'UNKNOWN',
-        count: g._count,
-      })),
-      statusDistribution: statusGroups.map((g) => ({
-        status: g.status,
-        count: g._count,
-      })),
-      fraudDistribution: fraudGroups.map((g) => ({
-        risk: g.fraudRisk ?? 'LOW',
-        count: g._count,
-      })),
+      typeDistribution: typeGroups.map((g) => ({ type: g.key ?? 'UNKNOWN', count: g.count })),
+      statusDistribution: statusGroups.map((g) => ({ status: g.key ?? 'UNKNOWN', count: g.count })),
+      fraudDistribution: fraudGroups.map((g) => ({ risk: g.key ?? 'LOW', count: g.count })),
       topVendors,
       spendTrend: months,
       totalSpend,

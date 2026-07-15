@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { repo } from '@/lib/repository'
 import { ok, err } from '@/lib/constants'
 
 export async function POST(
@@ -11,26 +11,21 @@ export async function POST(
     const body = await req.json().catch(() => ({}))
     const comments = (body.comments as string) || ''
 
-    const doc = await db.document.findUnique({ where: { id } })
+    const doc = await repo.getDocument(id)
     if (!doc) return NextResponse.json(err('Document not found'), { status: 404 })
 
-    const updated = await db.document.update({
-      where: { id },
-      data: {
-        status: 'APPROVED',
-        approvalComments: comments,
-        approvedBy: 'user',
-        approvedAt: new Date(),
-      },
+    const updated = await repo.updateDocument(id, {
+      status: 'APPROVED',
+      approvalComments: comments,
+      approvedBy: 'user',
+      approvedAt: new Date().toISOString(),
     })
 
-    await db.auditLog.create({
-      data: {
-        documentId: id,
-        action: 'APPROVED',
-        details: JSON.stringify({ comments }),
-        actor: 'user',
-      },
+    await repo.createAuditLog({
+      documentId: id,
+      action: 'APPROVED',
+      details: JSON.stringify({ comments }),
+      actor: 'user',
     })
 
     return NextResponse.json(ok(updated))

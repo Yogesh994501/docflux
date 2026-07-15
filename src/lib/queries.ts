@@ -185,6 +185,17 @@ export function useCopilotHistoryQuery() {
   })
 }
 
+export function useStatusQuery() {
+  return useQuery({
+    queryKey: ['status'],
+    queryFn: () =>
+      http<{ database: 'supabase' | 'sqlite'; ocr: 'gemini' | 'zai'; geminiModel: string }>(
+        '/api/status',
+      ),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
 export function useUploadMutation() {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { repo } from '@/lib/repository'
 import { ok, err } from '@/lib/constants'
 import { unlink } from 'fs/promises'
 import path from 'path'
@@ -12,10 +12,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const doc = await db.document.findUnique({
-      where: { id },
-      include: { vendor: true, auditLogs: { orderBy: { timestamp: 'asc' } } },
-    })
+    const doc = await repo.getDocument(id)
     if (!doc) return NextResponse.json(err('Document not found'), { status: 404 })
     return NextResponse.json(ok(doc))
   } catch (e) {
@@ -33,7 +30,7 @@ export async function PATCH(
   try {
     const { id } = await params
     const body = await req.json()
-    const existing = await db.document.findUnique({ where: { id } })
+    const existing = await repo.getDocument(id)
     if (!existing) return NextResponse.json(err('Document not found'), { status: 404 })
 
     const updates: Record<string, unknown> = {}
@@ -41,7 +38,6 @@ export async function PATCH(
     if (body.fraudRisk !== undefined) updates.fraudRisk = body.fraudRisk
     if (body.vendorId !== undefined) updates.vendorId = body.vendorId || null
 
-    // Merge extractedData edits
     if (body.extractedDataPatch && existing.extractedData) {
       const current = JSON.parse(existing.extractedData)
       const merged = { ...current, ...body.extractedDataPatch }
@@ -50,15 +46,13 @@ export async function PATCH(
       updates.extractedData = JSON.stringify(body.extractedDataPatch)
     }
 
-    const updated = await db.document.update({ where: { id }, data: updates })
+    const updated = await repo.updateDocument(id, updates)
 
-    await db.auditLog.create({
-      data: {
-        documentId: id,
-        action: 'EDITED',
-        details: JSON.stringify({ fields: Object.keys(updates) }),
-        actor: 'user',
-      },
+    await repo.createAuditLog({
+      documentId: id,
+      action: 'EDITED',
+      details: JSON.stringify({ fields: Object.keys(updates) }),
+      actor: 'user',
     })
 
     return NextResponse.json(ok(updated))
@@ -76,16 +70,15 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const doc = await db.document.findUnique({ where: { id } })
+    const doc = await repo.getDocument(id)
     if (!doc) return NextResponse.json(err('Document not found'), { status: 404 })
 
-    // Remove file from disk (best-effort)
     if (doc.storagePath?.startsWith('/uploads/')) {
       const fullPath = path.join(process.cwd(), 'public', doc.storagePath)
       try { await unlink(fullPath) } catch { /* ignore */ }
     }
 
-    await db.document.delete({ where: { id } })
+    await repo.deleteDocument(id)
     return NextResponse.json(ok({ id }))
   } catch (e) {
     console.error('[DELETE /api/documents/:id]', e)
