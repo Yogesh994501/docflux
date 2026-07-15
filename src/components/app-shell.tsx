@@ -10,6 +10,7 @@ import { useAnalyticsQuery, useStatusQuery, useSeedMutation } from '@/lib/querie
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
+import Strands from '@/components/strands'
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -57,11 +58,31 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0">
+            <SheetContent side="left" className="w-72 p-0 overflow-hidden">
               <SheetHeader className="sr-only">
                 <SheetTitle>Navigation</SheetTitle>
               </SheetHeader>
-              <Sidebar onNavigate={() => setMobileOpen(false)} />
+              {/* Fluid Strands backdrop inside the hamburger menu */}
+              <div className="pointer-events-none absolute inset-0 opacity-50">
+                <Strands
+                  colors={['#10b981', '#06b6d4', '#8b5cf6']}
+                  count={3}
+                  speed={0.45}
+                  amplitude={0.9}
+                  waviness={1.1}
+                  thickness={0.55}
+                  glow={3}
+                  taper={3}
+                  spread={1.2}
+                  intensity={0.6}
+                  saturation={1.4}
+                  opacity={0.85}
+                  scale={1.6}
+                />
+              </div>
+              <div className="relative z-10 h-full">
+                <Sidebar onNavigate={() => setMobileOpen(false)} />
+              </div>
             </SheetContent>
           </Sheet>
           <div className="flex items-center gap-2">

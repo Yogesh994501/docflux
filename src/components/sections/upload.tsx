@@ -25,6 +25,7 @@ import {
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SpotlightCard, FadeInUp, StaggerContainer, StaggerItem } from '@/components/motion-primitives'
+import { OcrProcessingOverlay } from '@/components/ocr-processing-overlay'
 
 interface UploadItem {
   id: string
@@ -77,8 +78,22 @@ export function UploadSection() {
     setItems((prev) => { const item = prev.find((it) => it.id === id); if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl); return prev.filter((it) => it.id !== id) })
   }
 
+  // The most recent uploading item — drives the full-screen OCR overlay
+  const activeItem = items.find((it) => it.status === 'uploading')
+
   return (
     <div className="space-y-6">
+      {/* Full-screen Strands OCR engagement overlay */}
+      <AnimatePresence>
+        {activeItem && (
+          <OcrProcessingOverlay
+            fileName={activeItem.file.name}
+            fileSize={activeItem.file.size}
+            previewUrl={activeItem.previewUrl}
+            fileType={activeItem.file.type}
+          />
+        )}
+      </AnimatePresence>
       {/* Hero dropzone */}
       <FadeInUp>
         <SpotlightCard className="p-0 overflow-hidden">
