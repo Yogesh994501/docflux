@@ -4,13 +4,12 @@ import { useState, type ReactNode } from 'react'
 import { Sidebar } from '@/components/sidebar'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { ScanLine, Menu, Sparkles, Database, Cpu } from 'lucide-react'
+import { Menu, Sparkles, Database, Cpu } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { useAnalyticsQuery, useStatusQuery, useSeedMutation } from '@/lib/queries'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import Strands from '@/components/strands'
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -36,6 +35,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     vendors: 'Vendors',
     analytics: 'Analytics',
     copilot: 'AI Copilot',
+    extraction: 'Agentic Extraction Workbench',
     profile: 'Profile & Settings',
   }
   const subtitleMap: Record<string, string> = {
@@ -46,6 +46,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     vendors: 'Auto-discovered suppliers and customers',
     analytics: 'Spend trends, type distribution, and fraud signals',
     copilot: 'Ask about GST, invoices, fraud detection and more',
+    extraction: 'Review and edit AI-extracted document data side-by-side',
     profile: 'Manage your account and system configuration',
   }
 
@@ -64,34 +65,14 @@ export function AppShell({ children }: { children: ReactNode }) {
               <SheetHeader className="sr-only">
                 <SheetTitle>Navigation</SheetTitle>
               </SheetHeader>
-              {/* Fluid Strands backdrop inside the hamburger menu */}
-              <div className="pointer-events-none absolute inset-0 opacity-50">
-                <Strands
-                  colors={['#10b981', '#06b6d4', '#8b5cf6']}
-                  count={3}
-                  speed={0.45}
-                  amplitude={0.9}
-                  waviness={1.1}
-                  thickness={0.55}
-                  glow={3}
-                  taper={3}
-                  spread={1.2}
-                  intensity={0.6}
-                  saturation={1.4}
-                  opacity={0.85}
-                  scale={1.6}
-                />
-              </div>
               <div className="relative z-10 h-full">
                 <Sidebar onNavigate={() => setMobileOpen(false)} />
               </div>
             </SheetContent>
           </Sheet>
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-foreground text-background">
-              <ScanLine className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-semibold">AutoFinDocs</span>
+            <img src="/brand/logo.jpeg" alt="DocFlux Logo" className="h-7 w-auto aspect-square object-contain" />
+            <span className="text-sm font-semibold font-serif">DocFlux</span>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -105,9 +86,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <div className="flex flex-1">
-        {/* Desktop sidebar — fixed, glassmorphic */}
-        <aside className="hidden w-[260px] shrink-0 border-r border-border/60 lg:block">
-          <div className="sticky top-0 h-screen sidebar-glass">
+        {/* Desktop sidebar — fixed */}
+        <aside className="hidden w-[260px] shrink-0 border-r border-brand-navy-800 bg-brand-navy-950 lg:block">
+          <div className="sticky top-0 h-screen">
             <Sidebar />
           </div>
         </aside>
@@ -137,20 +118,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               </motion.p>
             </div>
             <div className="flex items-center gap-2">
-              {/* Live status pills */}
-              {status && (
-                <div className="flex items-center gap-1.5 rounded-full border border-border/60 bg-card/60 px-3 py-1.5 text-[11px]">
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <Database className="h-3 w-3" />
-                    {status.database}
-                  </span>
-                  <span className="h-3 w-px bg-border" />
-                  <span className="flex items-center gap-1.5 font-medium">
-                    <Cpu className="h-3 w-3" />
-                    {status.ocr === 'gemini' ? `Gemini ${status.geminiModel?.replace('gemini-', '')}` : 'GLM-4.6V'}
-                  </span>
-                </div>
-              )}
               {(analytics?.counts.total ?? 0) === 0 && (
                 <Button variant="outline" size="sm" onClick={handleSeed} disabled={seed.isPending} className="rounded-lg">
                   <Sparkles className="mr-2 h-3.5 w-3.5" />
@@ -178,11 +145,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           <footer className="mt-auto border-t border-border/60 glass px-4 py-4 sm:px-6 lg:px-8">
             <div className="flex flex-col items-center justify-between gap-2 text-[11px] text-muted-foreground sm:flex-row">
               <div className="flex items-center gap-1.5">
-                <ScanLine className="h-3.5 w-3.5 text-foreground/60" />
+                <img src="/brand/logo.jpeg" alt="DocFlux Logo" className="h-4 w-auto grayscale opacity-70" />
                 <span>
-                  <span className="font-semibold text-foreground/80">AutoFinDocs</span>
+                  <span className="font-semibold font-serif text-foreground/80">DocFlux</span>
                   {' — '}
-                  AI-powered document OCR & parsing
+                  AI-powered document processing
                 </span>
               </div>
               <div className="flex items-center gap-3">

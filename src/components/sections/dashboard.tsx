@@ -45,9 +45,7 @@ import {
   StaggerContainer,
   StaggerItem,
   FadeInUp,
-  AuroraText,
 } from '@/components/motion-primitives'
-import Strands from '@/components/strands'
 
 const PIE_COLORS = ['#10b981', '#06b6d4', '#f59e0b', '#ec4899', '#8b5cf6', '#f43f5e', '#fb923c', '#14b8a6', '#64748b', '#a3e635']
 
@@ -76,98 +74,87 @@ export function DashboardSection() {
 
   return (
     <div className="space-y-6">
-      {/* Hero greeting with ambient Strands glow */}
+      {/* Hero greeting */}
       <FadeInUp>
-        <div className="relative overflow-hidden rounded-3xl">
-          {/* Subtle fluid Strands backdrop — premium awwwards-style ambient */}
-          <div className="pointer-events-none absolute inset-0 opacity-[0.18]">
-            <Strands
-              colors={['#10b981', '#06b6d4', '#8b5cf6']}
-              count={2}
-              speed={0.3}
-              amplitude={0.7}
-              waviness={0.9}
-              thickness={0.5}
-              glow={3.5}
-              taper={3.5}
-              spread={1}
-              intensity={0.5}
-              saturation={1.3}
-              opacity={0.8}
-              scale={2}
-            />
-          </div>
-          <div className="relative z-10 px-1 py-5">
-            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              Welcome back. <AuroraText>Here's your pipeline.</AuroraText>
+        <div className="relative overflow-hidden rounded-[14px] shadow-editorial h-56">
+          <img 
+            src="/brand/analytics-hero.jpeg" 
+            alt="Dashboard Hero" 
+            className="absolute inset-0 w-full h-full object-cover object-[center_30%]"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-brand-navy-950/90 via-brand-navy-950/60 to-transparent" />
+          <div className="relative z-10 px-8 py-12 flex flex-col justify-center h-full">
+            <h2 className="text-3xl font-serif tracking-wide text-white">
+              Workspace Active: Deep Data Extraction Systems Engaged.
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-3 text-brand-cream/80 max-w-lg">
               {c.total} documents processed · {c.pending} awaiting review · {formatCurrency(analytics.totalSpend)} total spend tracked
             </p>
           </div>
         </div>
       </FadeInUp>
 
-      {/* KPI cards */}
-      <StaggerContainer className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StaggerItem>
-          <SpotlightCard className="p-5 h-full">
+      {/* KPI cards - Bento Grid */}
+      <StaggerContainer className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <StaggerItem className="lg:col-span-2">
+          <div className="relative overflow-hidden rounded-[14px] bg-white border border-brand-cream-border shadow-editorial p-6 h-full transition-shadow hover:shadow-activeCard">
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-navy-800" />
             <div className="flex items-center justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground/[0.06] text-foreground">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-brand-cream text-brand-navy-900">
                 <FileText className="h-5 w-5" />
               </div>
-              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Total</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-brand-navy-700">Total Volume</span>
             </div>
-            <div className="mt-4 text-3xl font-semibold tracking-tight tabular-nums">
+            <div className="mt-6 text-4xl font-serif text-brand-navy-900 tabular-nums">
               <AnimatedCounter value={c.total} />
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">{c.processing} processing now</div>
-          </SpotlightCard>
+            <div className="mt-2 text-sm text-brand-navy-700">{c.processing} processing now</div>
+          </div>
         </StaggerItem>
 
-        <StaggerItem>
-          <SpotlightCard className="p-5 h-full">
+        <StaggerItem className="lg:col-span-1">
+          <div className="relative overflow-hidden rounded-[14px] bg-white border border-brand-cream-border shadow-editorial p-6 h-full transition-shadow hover:shadow-activeCard">
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-terracotta" />
             <div className="flex items-center justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-brand-terracotta-tint text-brand-terracotta">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
-              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Approved</span>
             </div>
-            <div className="mt-4 text-3xl font-semibold tracking-tight tabular-nums">
+            <div className="mt-6 text-3xl font-serif text-brand-navy-900 tabular-nums">
               <AnimatedCounter value={c.approved} />
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">{c.rejected} rejected</div>
-          </SpotlightCard>
+            <div className="mt-2 text-sm text-brand-navy-700">Approved</div>
+          </div>
         </StaggerItem>
 
-        <StaggerItem>
-          <SpotlightCard className="p-5 h-full">
+        <StaggerItem className="lg:col-span-1">
+          <div className="relative overflow-hidden rounded-[14px] bg-white border border-brand-cream-border shadow-editorial p-6 h-full transition-shadow hover:shadow-activeCard">
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-amber" />
             <div className="flex items-center justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-300">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-brand-amber-tint text-brand-amber">
                 <Clock className="h-5 w-5" />
               </div>
-              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Pending</span>
             </div>
-            <div className="mt-4 text-3xl font-semibold tracking-tight tabular-nums">
+            <div className="mt-6 text-3xl font-serif text-brand-navy-900 tabular-nums">
               <AnimatedCounter value={c.extracted} />
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">awaiting your review</div>
-          </SpotlightCard>
+            <div className="mt-2 text-sm text-brand-navy-700">Pending</div>
+          </div>
         </StaggerItem>
 
-        <StaggerItem>
-          <SpotlightCard className="p-5 h-full">
-            <div className="flex items-center justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-300">
+        <StaggerItem className="lg:col-span-1">
+          <div className="relative overflow-hidden rounded-[14px] bg-white border border-brand-cream-border shadow-editorial p-6 h-full transition-shadow hover:shadow-activeCard flex flex-col justify-end">
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#10b981]" />
+            <div className="flex items-center justify-between mb-auto">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-[#10b981]/10 text-[#10b981]">
                 <IndianRupee className="h-5 w-5" />
               </div>
-              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Spend</span>
             </div>
-            <div className="mt-4 text-3xl font-semibold tracking-tight tabular-nums">
-              <AnimatedCounter value={analytics.totalSpend} format={formatCurrency} />
+            <div className="mt-6 text-3xl font-serif text-brand-navy-900 tabular-nums">
+              <AnimatedCounter value={analytics.totalSpend} format={(v) => formatCurrency(v).split('.')[0]} />
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">across all documents</div>
-          </SpotlightCard>
+            <div className="mt-2 text-sm text-brand-navy-700">Total Spend</div>
+          </div>
         </StaggerItem>
       </StaggerContainer>
 
@@ -258,7 +245,7 @@ export function DashboardSection() {
           <Card className="premium-card rounded-2xl">
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <div>
-                <CardTitle className="text-base">Recent Documents</CardTitle>
+                <CardTitle className="text-xl font-serif text-brand-navy-900">Recent Documents</CardTitle>
                 <CardDescription>Latest uploads</CardDescription>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setSection('documents')} className="rounded-lg">
@@ -296,17 +283,19 @@ export function DashboardSection() {
                   </motion.button>
                 ))}
                 {(!recentDocs?.items || recentDocs.items.length === 0) && (
-                  <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-                    <div className="rounded-2xl bg-muted p-4">
-                      <UploadIcon className="h-7 w-7 text-muted-foreground" />
+                  <div className="relative overflow-hidden flex flex-col items-center justify-center gap-3 py-16 text-center rounded-xl border border-brand-cream-border">
+                    <img src="/brand/document-stack.jpeg" alt="Documents" className="absolute inset-0 w-full h-full object-cover blur-sm opacity-50" />
+                    <div className="absolute inset-0 bg-brand-cream/60" />
+                    <div className="relative z-10 flex flex-col items-center max-w-sm">
+                      <div className="rounded-xl bg-white p-4 shadow-editorial mb-4">
+                        <UploadIcon className="h-8 w-8 text-brand-terracotta" />
+                      </div>
+                      <div className="text-lg font-serif text-brand-navy-900 mb-1">Drag new receipts or invoices here</div>
+                      <div className="text-sm text-brand-navy-700 mb-6">to invoke agentic parsing.</div>
+                      <Button onClick={() => setSection('upload')} className="rounded-[8px] bg-brand-terracotta hover:bg-brand-terracotta-hover text-white shadow-activeCard">
+                        Upload document
+                      </Button>
                     </div>
-                    <div>
-                      <div className="text-sm font-medium">No documents yet</div>
-                      <div className="text-xs text-muted-foreground">Upload a receipt, invoice, or government ID to begin</div>
-                    </div>
-                    <Button size="sm" onClick={() => setSection('upload')} className="rounded-lg">
-                      <UploadIcon className="mr-1.5 h-4 w-4" /> Upload document
-                    </Button>
                   </div>
                 )}
               </div>

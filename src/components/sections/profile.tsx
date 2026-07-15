@@ -57,19 +57,26 @@ export function ProfileSection() {
     <div className="mx-auto max-w-2xl space-y-6">
       {/* Profile header */}
       <FadeInUp>
-        <SpotlightCard className="overflow-hidden">
-          <div className="flex items-center gap-5 p-6">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-foreground text-xl font-semibold text-background shadow-sm">
+        <SpotlightCard className="overflow-hidden p-0 border-brand-cream-border">
+          <div className="h-48 w-full">
+            <img 
+              src="/brand/team-collab.jpeg" 
+              alt="Team" 
+              className="h-full w-full object-cover object-[center_30%]"
+            />
+          </div>
+          <div className="flex items-center gap-5 p-6 bg-white">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[14px] bg-brand-navy-900 text-xl font-serif text-white shadow-sm border-2 border-white -mt-12 relative z-10">
               {initials}
             </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate text-lg font-semibold tracking-tight">{user.name}</h2>
-              <p className="truncate text-sm text-muted-foreground">{user.email}</p>
+            <div className="min-w-0 flex-1 pt-2">
+              <h2 className="truncate text-xl font-serif tracking-wide text-brand-navy-900">{user.name}</h2>
+              <p className="truncate text-sm text-brand-navy-700">{user.email}</p>
               <div className="mt-1.5 flex items-center gap-1.5">
-                <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                <span className="flex items-center gap-1 rounded-[4px] bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
                   <CheckCircle2 className="h-2.5 w-2.5" /> Active
                 </span>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground capitalize">
+                <span className="rounded-[4px] bg-brand-cream border border-brand-cream-border px-2 py-0.5 text-[10px] font-medium text-brand-navy-700 capitalize">
                   {user.provider} auth
                 </span>
               </div>
@@ -138,7 +145,7 @@ export function ProfileSection() {
             </div>
           )}
           <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-xl border border-border/60 bg-card/40 p-3">
+            <div className="flex items-center justify-between rounded-[8px] border border-brand-cream-border bg-brand-cream/50 p-3">
               <div className="flex items-center gap-2.5">
                 <Database className="h-4 w-4 text-muted-foreground" />
                 <div>
@@ -146,11 +153,11 @@ export function ProfileSection() {
                   <div className="text-[11px] text-muted-foreground">Where your documents are stored</div>
                 </div>
               </div>
-              <span className="rounded-full bg-foreground/[0.06] px-2.5 py-0.5 text-xs font-medium capitalize">
+              <span className="rounded-[4px] bg-white border border-brand-cream-border px-2.5 py-0.5 text-xs font-medium capitalize text-brand-navy-900">
                 {status?.database ?? 'sqlite'}
               </span>
             </div>
-            <div className="flex items-center justify-between rounded-xl border border-border/60 bg-card/40 p-3">
+            <div className="flex items-center justify-between rounded-[8px] border border-brand-cream-border bg-brand-cream/50 p-3">
               <div className="flex items-center gap-2.5">
                 <Cpu className="h-4 w-4 text-muted-foreground" />
                 <div>
@@ -158,11 +165,11 @@ export function ProfileSection() {
                   <div className="text-[11px] text-muted-foreground">Vision model reading your docs</div>
                 </div>
               </div>
-              <span className="rounded-full bg-foreground/[0.06] px-2.5 py-0.5 text-xs font-medium">
+              <span className="rounded-[4px] bg-white border border-brand-cream-border px-2.5 py-0.5 text-xs font-medium text-brand-navy-900">
                 {status?.ocr === 'gemini' ? `Gemini ${status.geminiModel?.replace('gemini-', '')}` : 'GLM-4.6V'}
               </span>
             </div>
-            <div className="flex items-center justify-between rounded-xl border border-border/60 bg-card/40 p-3">
+            <div className="flex items-center justify-between rounded-[8px] border border-brand-cream-border bg-brand-cream/50 p-3">
               <div className="flex items-center gap-2.5">
                 <Shield className="h-4 w-4 text-muted-foreground" />
                 <div>
@@ -170,7 +177,7 @@ export function ProfileSection() {
                   <div className="text-[11px] text-muted-foreground">How accounts & sessions are managed</div>
                 </div>
               </div>
-              <span className="rounded-full bg-foreground/[0.06] px-2.5 py-0.5 text-xs font-medium capitalize">
+              <span className="rounded-[4px] bg-white border border-brand-cream-border px-2.5 py-0.5 text-xs font-medium capitalize text-brand-navy-900">
                 {user.provider}
               </span>
             </div>

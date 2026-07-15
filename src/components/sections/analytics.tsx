@@ -25,10 +25,10 @@ export function AnalyticsSection() {
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { icon: IndianRupee, label: 'Total Spend', value: a.totalSpend, format: formatCurrency, tint: 'bg-foreground/[0.06] text-foreground' },
-          { icon: TrendingUp, label: 'Approval Rate', value: approvalRate, format: (n: number) => `${n.toFixed(1)}%`, tint: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300' },
-          { icon: BarChart3, label: 'Avg Docs / Month', value: a.spendTrend.reduce((s, m) => s + m.count, 0) / Math.max(1, a.spendTrend.length), format: (n: number) => n.toFixed(1), tint: 'bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-300' },
-          { icon: Building2, label: 'Active Vendors', value: a.topVendors.length, format: (n: number) => n.toLocaleString(), tint: 'bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-300' },
+          { icon: IndianRupee, label: 'Total Spend', value: a.totalSpend, format: formatCurrency, tint: 'bg-brand-terracotta-tint text-brand-terracotta' },
+          { icon: TrendingUp, label: 'Approval Rate', value: approvalRate, format: (n: number) => `${n.toFixed(1)}%`, tint: 'bg-brand-terracotta-tint text-brand-terracotta' },
+          { icon: BarChart3, label: 'Avg Docs / Month', value: a.spendTrend.reduce((s, m) => s + m.count, 0) / Math.max(1, a.spendTrend.length), format: (n: number) => n.toFixed(1), tint: 'bg-brand-terracotta-tint text-brand-terracotta' },
+          { icon: Building2, label: 'Active Vendors', value: a.topVendors.length, format: (n: number) => n.toLocaleString(), tint: 'bg-brand-terracotta-tint text-brand-terracotta' },
         ].map((kpi, i) => (
           <FadeInUp key={kpi.label} delay={i * 0.05}>
             <SpotlightCard className="p-4 h-full">
