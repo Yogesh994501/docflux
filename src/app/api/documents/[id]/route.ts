@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { repo } from '@/lib/repository'
+import { auth } from '@/lib/auth'
 import { ok, err } from '@/lib/constants'
 import { unlink } from 'fs/promises'
 import path from 'path'
@@ -11,13 +12,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const user = await auth.requireUser()
     const { id } = await params
-    const doc = await repo.getDocument(id)
+    const doc = await repo.getDocument(id, user.id)
     if (!doc) return NextResponse.json(err('Document not found'), { status: 404 })
     return NextResponse.json(ok(doc))
   } catch (e) {
     console.error('[GET /api/documents/:id]', e)
-    return NextResponse.json(err('Failed to fetch document'), { status: 500 })
+    const status = (e as Error).message === 'Unauthorized' ? 401 : 500
+    return NextResponse.json(err('Failed to fetch document'), { status })
   }
 }
 
@@ -28,10 +31,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const user = await auth.requireUser()
     const { id } = await params
-    const body = await req.json()
-    const existing = await repo.getDocument(id)
+    const existing = await repo.getDocument(id, user.id)
     if (!existing) return NextResponse.json(err('Document not found'), { status: 404 })
+    const body = await req.json()
 
     const updates: Record<string, unknown> = {}
     if (body.documentType !== undefined) updates.documentType = body.documentType
@@ -52,13 +56,14 @@ export async function PATCH(
       documentId: id,
       action: 'EDITED',
       details: JSON.stringify({ fields: Object.keys(updates) }),
-      actor: 'user',
+      actor: user.email,
     })
 
     return NextResponse.json(ok(updated))
   } catch (e) {
     console.error('[PATCH /api/documents/:id]', e)
-    return NextResponse.json(err('Failed to update document'), { status: 500 })
+    const status = (e as Error).message === 'Unauthorized' ? 401 : 500
+    return NextResponse.json(err('Failed to update document'), { status })
   }
 }
 
@@ -69,8 +74,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const user = await auth.requireUser()
     const { id } = await params
-    const doc = await repo.getDocument(id)
+    const doc = await repo.getDocument(id, user.id)
     if (!doc) return NextResponse.json(err('Document not found'), { status: 404 })
 
     if (doc.storagePath?.startsWith('/uploads/')) {
@@ -82,6 +88,7 @@ export async function DELETE(
     return NextResponse.json(ok({ id }))
   } catch (e) {
     console.error('[DELETE /api/documents/:id]', e)
-    return NextResponse.json(err('Failed to delete document'), { status: 500 })
+    const status = (e as Error).message === 'Unauthorized' ? 401 : 500
+    return NextResponse.json(err('Failed to delete document'), { status })
   }
 }

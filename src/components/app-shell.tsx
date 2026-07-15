@@ -36,6 +36,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     vendors: 'Vendors',
     analytics: 'Analytics',
     copilot: 'AI Copilot',
+    profile: 'Profile & Settings',
   }
   const subtitleMap: Record<string, string> = {
     dashboard: 'Real-time overview of your document pipeline',
@@ -45,6 +46,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     vendors: 'Auto-discovered suppliers and customers',
     analytics: 'Spend trends, type distribution, and fraud signals',
     copilot: 'Ask about GST, invoices, fraud detection and more',
+    profile: 'Manage your account and system configuration',
   }
 
   return (

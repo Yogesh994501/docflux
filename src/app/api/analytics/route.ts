@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { repo } from '@/lib/repository'
+import { auth } from '@/lib/auth'
 import { ok, err } from '@/lib/constants'
 
 export async function GET(_req: NextRequest) {
   try {
-    // Counts via groupBy
+    const user = await auth.requireUser()
+    const userId = user.id
+
     const [statusGroups, typeGroups, fraudGroups] = await Promise.all([
-      repo.groupBy('status'),
-      repo.groupBy('documentType'),
-      repo.groupBy('fraudRisk'),
+      repo.groupBy('status', userId),
+      repo.groupBy('documentType', userId),
+      repo.groupBy('fraudRisk', userId),
     ])
 
     const countOf = (groups: { key: string | null; count: number }[], key: string) =>
@@ -16,8 +19,7 @@ export async function GET(_req: NextRequest) {
 
     const total = statusGroups.reduce((a, g) => a + g.count, 0)
 
-    // Vendors + their docs (for spend)
-    const vendors = await repo.listVendors()
+    const vendors = await repo.listVendors(undefined, userId)
     const topVendors = vendors
       .map((v) => ({ name: v.name, count: v.documentCount ?? 0, totalSpend: v.totalSpend ?? 0 }))
       .filter((v) => v.totalSpend > 0)
@@ -26,16 +28,13 @@ export async function GET(_req: NextRequest) {
 
     const totalSpend = vendors.reduce((a, v) => a + (v.totalSpend ?? 0), 0)
 
-    // Spend trend (last 6 months)
     const now = new Date()
     const months: { label: string; spend: number; count: number }[] = []
-    const { items: allDocs } = await repo.listDocuments({ page: 1, pageSize: 1000 })
+    const { items: allDocs } = await repo.listDocuments({ page: 1, pageSize: 1000, userId })
     for (let i = 5; i >= 0; i--) {
       const start = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
-      const monthDocs = allDocs.filter(
-        (d) => new Date(d.uploadedAt) >= start && new Date(d.uploadedAt) < end,
-      )
+      const monthDocs = allDocs.filter((d) => new Date(d.uploadedAt) >= start && new Date(d.uploadedAt) < end)
       let spend = 0
       for (const d of monthDocs) {
         if (d.extractedData) {
@@ -46,11 +45,7 @@ export async function GET(_req: NextRequest) {
           } catch { /* ignore */ }
         }
       }
-      months.push({
-        label: start.toLocaleString('en-US', { month: 'short' }),
-        spend,
-        count: monthDocs.length,
-      })
+      months.push({ label: start.toLocaleString('en-US', { month: 'short' }), spend, count: monthDocs.length })
     }
 
     return NextResponse.json(ok({
@@ -72,6 +67,7 @@ export async function GET(_req: NextRequest) {
     }))
   } catch (e) {
     console.error('[GET /api/analytics]', e)
-    return NextResponse.json(err('Failed to fetch analytics'), { status: 500 })
+    const status = (e as Error).message === 'Unauthorized' ? 401 : 500
+    return NextResponse.json(err('Failed to fetch analytics'), { status })
   }
 }

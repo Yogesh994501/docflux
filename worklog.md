@@ -162,3 +162,68 @@ Stage Summary:
   behind, premium layered blurs throughout.
 - User stays visually captivated during the full OCR pipeline (verified
   end-to-end with a real upload).
+
+---
+Task ID: 27-38
+Agent: orchestrator (auth + user-scoped DB)
+Task: Add auth (login/signup/profile), make DB consistent + user-scoped, conditional Supabase/local
+
+Work Log:
+- Installed jose (JWT) + bcryptjs (password hashing) + @types/bcryptjs.
+- Updated Prisma schema: added User model (id, email, name, passwordHash,
+  avatarUrl, timestamps). Added userId FK to Document, Vendor, CopilotMessage
+  with onDelete: Cascade. Reverse relations on User. Force-reset SQLite.
+- Updated supabase-schema.sql: profiles table (links to auth.users), user_id
+  columns on vendors/documents/copilot_messages, RLS policies scoping every
+  table by auth.uid(), auto-profile-creation trigger on auth signup.
+- Built src/lib/auth.ts — unified auth with two backends:
+  * Supabase Auth (if SUPABASE_URL+ANON_KEY set): signUp/signInWithPassword,
+    session via access_token, profiles table for name/avatar.
+  * Local (default): bcrypt hash + JWT in httpOnly cookie (30d), jose verify.
+  Single `auth` object: signup, login, logout, getCurrentUser, requireUser,
+  updateProfile. getAuthProvider() exposes which backend is active.
+- Updated repository.ts + supabase-backend.ts: every method now accepts
+  userId and scopes queries (listDocuments, getDocument, createDocument,
+  listVendors, createVendor, findVendorByGstin/Name, listCopilotMessages,
+  createCopilotMessage, clearAll, groupBy). createDocument/createVendor now
+  require userId. getDocument returns null if userId mismatches.
+- Built 5 auth API routes: /api/auth/signup, /login, /logout, /me, /profile
+  (PATCH). Updated /api/status to expose auth provider.
+- Refactored ALL data routes to use auth.requireUser() + scope by user.id:
+  documents (GET/POST), documents/[id] (GET/PATCH/DELETE), approve, reject,
+  reprocess, analytics, vendors (GET/POST), copilot (GET/POST), seed.
+  Every audit log now records actor = user.email.
+- Built AuthProvider context (src/components/auth-provider.tsx): useAuth hook
+  with user, loading, login, signup, logout, updateProfile, refresh. Wired
+  into Providers.
+- Built AuthScreen (src/components/auth-screen.tsx): premium login/signup
+  with Strands fluid background, glassmorphic card, animated tab toggle
+  (layoutId), form validation, loading states.
+- Built ProfileSection: avatar initials, user info, edit-name form, system
+  config panel (DB/OCR/Auth providers), sign-out button.
+- Updated page.tsx: gates app on auth (loading splash → AuthScreen if no
+  user → AppShell if authenticated). Added ProfileSection route.
+- Updated sidebar: added Profile nav item, user card at bottom (click →
+  profile), shows name/email/initials.
+- Updated app-shell: added 'profile' to title/subtitle maps.
+- Updated queries.ts: status type now includes auth field.
+- Verified with Agent Browser:
+  * Login screen renders with Strands bg ✓
+  * Signup "Priya Patel" → logged in, dashboard shows 0 docs ✓
+  * Seed (scoped) → 6 docs, ₹3.30 L spend for Priya ✓
+  * Profile page: shows user info, system config (sqlite/GLM/local), edit
+    form, sign out ✓
+  * Logout → redirected to login screen ✓
+  * Data isolation: signed up "Arjun Mehta" → sees 0 docs (Priya's data
+    private) ✓
+  * API: /api/analytics without cookie → 401 ✓
+  * Lint clean, no console errors ✓
+
+Stage Summary:
+- Full auth: login + signup + profile + logout, two backends (Supabase Auth
+  or local JWT+bcrypt), switchable via env.
+- DB now consistent & user-scoped: every document/vendor/copilot-message
+  belongs to a user. Uploaded documents stored with userId. Queries filtered
+  by owner. RLS policies on Supabase.
+- New users start with empty dashboard; "Load demo data" seeds their account.
+- Data isolation verified: two users cannot see each other's documents.

@@ -120,6 +120,7 @@ async function http<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init)
   const json = await res.json()
   if (json.status !== 'success') {
+    // On 401, the auth provider will pick up the missing session on next me-check
     throw new Error(json.detail ?? 'Request failed')
   }
   return json.data as T
@@ -189,7 +190,7 @@ export function useStatusQuery() {
   return useQuery({
     queryKey: ['status'],
     queryFn: () =>
-      http<{ database: 'supabase' | 'sqlite'; ocr: 'gemini' | 'zai'; geminiModel: string }>(
+      http<{ database: 'supabase' | 'sqlite'; ocr: 'gemini' | 'zai'; auth: 'supabase' | 'local'; geminiModel: string }>(
         '/api/status',
       ),
     staleTime: 5 * 60 * 1000,

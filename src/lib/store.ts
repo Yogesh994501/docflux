@@ -8,6 +8,7 @@ export type Section =
   | 'vendors'
   | 'analytics'
   | 'copilot'
+  | 'profile'
 
 interface AppState {
   section: Section

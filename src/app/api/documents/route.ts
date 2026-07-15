@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { repo } from '@/lib/repository'
+import { auth } from '@/lib/auth'
 import { processDocument } from '@/lib/ai'
 import { ok, err } from '@/lib/constants'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { randomUUID } from 'crypto'
 
-// ─── GET /api/documents — list with filters ──────────────────────────────────
+// ─── GET /api/documents — list (scoped to current user) ──────────────────────
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await auth.requireUser()
     const { searchParams } = new URL(req.url)
     const page = Math.max(1, Number(searchParams.get('page') ?? '1'))
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get('pageSize') ?? '20')))
@@ -21,19 +23,22 @@ export async function GET(req: NextRequest) {
       documentType: searchParams.get('documentType') || null,
       fraudRisk: searchParams.get('fraudRisk') || null,
       search: searchParams.get('search') || null,
+      userId: user.id,
     })
 
     return NextResponse.json(ok({ items, total, page, pageSize }))
   } catch (e) {
     console.error('[GET /api/documents]', e)
-    return NextResponse.json(err('Failed to fetch documents'), { status: 500 })
+    const status = (e as Error).message === 'Unauthorized' ? 401 : 500
+    return NextResponse.json(err('Failed to fetch documents'), { status })
   }
 }
 
-// ─── POST /api/documents — upload + OCR + extract ────────────────────────────
+// ─── POST /api/documents — upload + OCR (owned by current user) ──────────────
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await auth.requireUser()
     const formData = await req.formData()
     const file = formData.get('file')
     if (!file || !(file instanceof File)) {
@@ -77,12 +82,13 @@ export async function POST(req: NextRequest) {
       thumbnailPath: relativePath,
       source,
       status: 'PROCESSING',
+      userId: user.id,
     })
 
     await repo.createAuditLog({
       documentId: doc.id,
       action: 'UPLOADED',
-      details: JSON.stringify({ fileName: file.name, size: file.size, source }),
+      details: JSON.stringify({ fileName: file.name, size: file.size, source, userId: user.id }),
     })
 
     try {
@@ -110,23 +116,24 @@ export async function POST(req: NextRequest) {
         }),
       })
 
-      // Auto-link / auto-create vendor
+      // Auto-link / auto-create vendor (scoped to this user)
       const gstin = result.extracted.vendorGstin?.trim()
-      const name = result.extracted.vendorName?.trim()
-      if (gstin || name) {
+      const vname = result.extracted.vendorName?.trim()
+      if (gstin || vname) {
         let vendor = null
-        if (gstin) vendor = await repo.findVendorByGstin(gstin)
-        if (!vendor && name) vendor = await repo.findVendorByName(name)
+        if (gstin) vendor = await repo.findVendorByGstin(gstin, user.id)
+        if (!vendor && vname) vendor = await repo.findVendorByName(vname, user.id)
         if (vendor) {
           await repo.updateDocument(doc.id, { vendorId: vendor.id })
-        } else if (name && ['GST_INVOICE', 'RECEIPT', 'E_BILL', 'PURCHASE_ORDER'].includes(result.extracted.documentType)) {
+        } else if (vname && ['GST_INVOICE', 'RECEIPT', 'E_BILL', 'PURCHASE_ORDER'].includes(result.extracted.documentType)) {
           const newVendor = await repo.createVendor({
-            name,
+            name: vname,
             gstin: gstin || null,
             address: result.extracted.vendorAddress || null,
             phone: result.extracted.vendorPhone || null,
             email: result.extracted.vendorEmail || null,
             category: 'supplier',
+            userId: user.id,
           })
           await repo.updateDocument(doc.id, { vendorId: newVendor.id })
         }
@@ -141,10 +148,11 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const final = await repo.getDocument(doc.id)
+    const final = await repo.getDocument(doc.id, user.id)
     return NextResponse.json(ok(final))
   } catch (e) {
     console.error('[POST /api/documents]', e)
-    return NextResponse.json(err('Failed to upload document'), { status: 500 })
+    const status = (e as Error).message === 'Unauthorized' ? 401 : 500
+    return NextResponse.json(err('Failed to upload document'), { status })
   }
 }

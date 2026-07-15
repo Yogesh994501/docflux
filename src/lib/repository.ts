@@ -79,6 +79,7 @@ export interface DocListParams {
   documentType?: string | null
   fraudRisk?: string | null
   search?: string | null
+  userId?: string | null
 }
 
 // ─── Backend detection ────────────────────────────────────────────────────────
@@ -95,6 +96,7 @@ export function getDatabaseProvider(): 'supabase' | 'sqlite' {
 
 async function prismaListDocuments(params: DocListParams): Promise<{ items: DocumentRow[]; total: number }> {
   const where: Record<string, unknown> = {}
+  if (params.userId) where.userId = params.userId
   if (params.status) where.status = params.status
   if (params.documentType) where.documentType = params.documentType
   if (params.fraudRisk) where.fraudRisk = params.fraudRisk
@@ -176,7 +178,7 @@ function mapPrismaAudit(a: any): AuditLogRow {
   }
 }
 
-async function prismaGetDocument(id: string): Promise<DocumentRow | null> {
+async function prismaGetDocument(id: string, userId?: string): Promise<DocumentRow | null> {
   const d = await prisma.document.findUnique({
     where: { id },
     include: {
@@ -185,12 +187,13 @@ async function prismaGetDocument(id: string): Promise<DocumentRow | null> {
     },
   })
   if (!d) return null
+  if (userId && d.userId !== userId) return null // scope check
   const row = mapPrismaDoc(d)
   row.auditLogs = (d.auditLogs ?? []).map(mapPrismaAudit)
   return row
 }
 
-async function prismaCreateDocument(data: Partial<DocumentRow> & { fileName: string; fileType: string; fileSize: number; storagePath: string; source: string; status: string }): Promise<DocumentRow> {
+async function prismaCreateDocument(data: Partial<DocumentRow> & { fileName: string; fileType: string; fileSize: number; storagePath: string; source: string; status: string; userId: string }): Promise<DocumentRow> {
   const d = await prisma.document.create({
     data: {
       fileName: data.fileName,
@@ -201,6 +204,7 @@ async function prismaCreateDocument(data: Partial<DocumentRow> & { fileName: str
       documentType: data.documentType ?? null,
       source: data.source,
       status: data.status,
+      userId: data.userId,
     },
   })
   return mapPrismaDoc(d)
@@ -219,8 +223,9 @@ async function prismaCreateAuditLog(data: { documentId: string; action: string; 
   await prisma.auditLog.create({ data })
 }
 
-async function prismaListVendors(search?: string): Promise<VendorRow[]> {
+async function prismaListVendors(search?: string, userId?: string): Promise<VendorRow[]> {
   const where: Record<string, unknown> = {}
+  if (userId) where.userId = userId
   if (search) {
     where.OR = [
       { name: { contains: search } },
@@ -259,23 +264,30 @@ async function prismaListVendors(search?: string): Promise<VendorRow[]> {
   return enriched
 }
 
-async function prismaCreateVendor(data: { name: string; gstin?: string | null; pan?: string | null; email?: string | null; phone?: string | null; address?: string | null; category?: string | null }): Promise<VendorRow> {
+async function prismaCreateVendor(data: { name: string; gstin?: string | null; pan?: string | null; email?: string | null; phone?: string | null; address?: string | null; category?: string | null; userId: string }): Promise<VendorRow> {
   const v = await prisma.vendor.create({ data: data as any })
   return mapPrismaVendor(v)
 }
 
-async function prismaFindVendorByGstin(gstin: string): Promise<VendorRow | null> {
-  const v = await prisma.vendor.findFirst({ where: { gstin } })
+async function prismaFindVendorByGstin(gstin: string, userId?: string): Promise<VendorRow | null> {
+  const where: Record<string, unknown> = { gstin }
+  if (userId) where.userId = userId
+  const v = await prisma.vendor.findFirst({ where })
   return v ? mapPrismaVendor(v) : null
 }
 
-async function prismaFindVendorByName(name: string): Promise<VendorRow | null> {
-  const v = await prisma.vendor.findFirst({ where: { name: { contains: name } } })
+async function prismaFindVendorByName(name: string, userId?: string): Promise<VendorRow | null> {
+  const where: Record<string, unknown> = { name: { contains: name } }
+  if (userId) where.userId = userId
+  const v = await prisma.vendor.findFirst({ where })
   return v ? mapPrismaVendor(v) : null
 }
 
-async function prismaListCopilotMessages(limit = 50): Promise<CopilotMessageRow[]> {
+async function prismaListCopilotMessages(limit = 50, userId?: string): Promise<CopilotMessageRow[]> {
+  const where: Record<string, unknown> = {}
+  if (userId) where.userId = userId
   const rows = await prisma.copilotMessage.findMany({
+    where,
     orderBy: { createdAt: 'asc' },
     take: limit,
   })
@@ -287,21 +299,32 @@ async function prismaListCopilotMessages(limit = 50): Promise<CopilotMessageRow[
   }))
 }
 
-async function prismaCreateCopilotMessage(role: string, content: string): Promise<void> {
-  await prisma.copilotMessage.create({ data: { role, content } })
+async function prismaCreateCopilotMessage(role: string, content: string, userId?: string): Promise<void> {
+  await prisma.copilotMessage.create({ data: { role, content, userId: userId ?? null } })
 }
 
-async function prismaClearAll(): Promise<void> {
-  await prisma.auditLog.deleteMany()
-  await prisma.document.deleteMany()
-  await prisma.vendor.deleteMany()
-  await prisma.copilotMessage.deleteMany()
+async function prismaClearAll(userId?: string): Promise<void> {
+  if (userId) {
+    // Clear only the current user's data
+    await prisma.auditLog.deleteMany({ where: { document: { userId } } })
+    await prisma.document.deleteMany({ where: { userId } })
+    await prisma.vendor.deleteMany({ where: { userId } })
+    await prisma.copilotMessage.deleteMany({ where: { userId } })
+  } else {
+    await prisma.auditLog.deleteMany()
+    await prisma.document.deleteMany()
+    await prisma.vendor.deleteMany()
+    await prisma.copilotMessage.deleteMany()
+  }
 }
 
-async function prismaGroupBy(field: 'documentType' | 'status' | 'fraudRisk'): Promise<{ key: string | null; count: number }[]> {
+async function prismaGroupBy(field: 'documentType' | 'status' | 'fraudRisk', userId?: string): Promise<{ key: string | null; count: number }[]> {
+  const where: Record<string, unknown> = {}
+  if (userId) where.userId = userId
   const groups = await (prisma.document as any).groupBy({
     by: [field],
     _count: true,
+    where,
   })
   return groups.map((g: any) => ({ key: g[field], count: g._count }))
 }
@@ -323,10 +346,10 @@ export const repo = {
       : prismaListDocuments(params)
   },
 
-  async getDocument(id: string) {
+  async getDocument(id: string, userId?: string) {
     return isSupabaseEnabled()
-      ? getSupabase().getDocument(id)
-      : prismaGetDocument(id)
+      ? getSupabase().getDocument(id, userId)
+      : prismaGetDocument(id, userId)
   },
 
   async createDocument(data: Parameters<typeof prismaCreateDocument>[0]) {
@@ -353,10 +376,10 @@ export const repo = {
       : prismaCreateAuditLog(data)
   },
 
-  async listVendors(search?: string) {
+  async listVendors(search?: string, userId?: string) {
     return isSupabaseEnabled()
-      ? getSupabase().listVendors(search)
-      : prismaListVendors(search)
+      ? getSupabase().listVendors(search, userId)
+      : prismaListVendors(search, userId)
   },
 
   async createVendor(data: Parameters<typeof prismaCreateVendor>[0]) {
@@ -365,39 +388,39 @@ export const repo = {
       : prismaCreateVendor(data)
   },
 
-  async findVendorByGstin(gstin: string) {
+  async findVendorByGstin(gstin: string, userId?: string) {
     return isSupabaseEnabled()
-      ? getSupabase().findVendorByGstin(gstin)
-      : prismaFindVendorByGstin(gstin)
+      ? getSupabase().findVendorByGstin(gstin, userId)
+      : prismaFindVendorByGstin(gstin, userId)
   },
 
-  async findVendorByName(name: string) {
+  async findVendorByName(name: string, userId?: string) {
     return isSupabaseEnabled()
-      ? getSupabase().findVendorByName(name)
-      : prismaFindVendorByName(name)
+      ? getSupabase().findVendorByName(name, userId)
+      : prismaFindVendorByName(name, userId)
   },
 
-  async listCopilotMessages(limit = 50) {
+  async listCopilotMessages(limit = 50, userId?: string) {
     return isSupabaseEnabled()
-      ? getSupabase().listCopilotMessages(limit)
-      : prismaListCopilotMessages(limit)
+      ? getSupabase().listCopilotMessages(limit, userId)
+      : prismaListCopilotMessages(limit, userId)
   },
 
-  async createCopilotMessage(role: string, content: string) {
+  async createCopilotMessage(role: string, content: string, userId?: string) {
     return isSupabaseEnabled()
-      ? getSupabase().createCopilotMessage(role, content)
-      : prismaCreateCopilotMessage(role, content)
+      ? getSupabase().createCopilotMessage(role, content, userId)
+      : prismaCreateCopilotMessage(role, content, userId)
   },
 
-  async clearAll() {
+  async clearAll(userId?: string) {
     return isSupabaseEnabled()
-      ? getSupabase().clearAll()
-      : prismaClearAll()
+      ? getSupabase().clearAll(userId)
+      : prismaClearAll(userId)
   },
 
-  async groupBy(field: 'documentType' | 'status' | 'fraudRisk') {
+  async groupBy(field: 'documentType' | 'status' | 'fraudRisk', userId?: string) {
     return isSupabaseEnabled()
-      ? getSupabase().groupBy(field)
-      : prismaGroupBy(field)
+      ? getSupabase().groupBy(field, userId)
+      : prismaGroupBy(field, userId)
   },
 }
