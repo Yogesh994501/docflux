@@ -202,10 +202,11 @@ export function useStatusQuery() {
 export function useUploadMutation() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file, docTypeHint = 'auto' }: { file: File; docTypeHint?: string }) => {
       const fd = new FormData()
       fd.append('file', file)
       fd.append('source', 'web')
+      fd.append('docTypeHint', docTypeHint)
       const res = await fetch('/api/documents', { method: 'POST', body: fd })
       const json = await res.json()
       if (json.status !== 'success') throw new Error(json.detail ?? 'Upload failed')

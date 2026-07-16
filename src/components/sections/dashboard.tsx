@@ -47,7 +47,19 @@ import {
   FadeInUp,
 } from '@/components/motion-primitives'
 
-const PIE_COLORS = ['#10b981', '#06b6d4', '#f59e0b', '#ec4899', '#8b5cf6', '#f43f5e', '#fb923c', '#14b8a6', '#64748b', '#a3e635']
+// Brand-disciplined palette — navy/terracotta only, with opacity steps
+const PIE_COLORS = [
+  '#C1592A', // terracotta-600
+  '#1B2A41', // navy-900
+  '#D76C4D', // terracotta (brand)
+  '#2C3A54', // navy-700
+  '#E8906E', // terracotta-400 (lighter)
+  '#3D4F6E', // navy-500
+  '#F0B49A', // terracotta-200 (pale)
+  '#4E6080', // navy-400
+  '#C1592A', // repeat cycle
+  '#1B2A41',
+]
 
 export function DashboardSection() {
   const { data: analytics, isLoading } = useAnalyticsQuery()
@@ -78,16 +90,22 @@ export function DashboardSection() {
       <FadeInUp>
         <div className="relative overflow-hidden rounded-[14px] shadow-editorial h-56">
           <img 
-            src="/brand/analytics-hero.jpeg" 
+            src="/brand/dashboard-hero.jpeg" 
             alt="Dashboard Hero" 
             className="absolute inset-0 w-full h-full object-cover object-[center_30%]"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-brand-navy-950/90 via-brand-navy-950/60 to-transparent" />
-          <div className="relative z-10 px-8 py-12 flex flex-col justify-center h-full">
+          <div className="relative z-10 px-8 py-10 flex flex-col justify-center h-full">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-terracotta/20 border border-brand-terracotta/30 px-3 py-1 text-xs font-semibold text-brand-terracotta">
+                <span className="h-1.5 w-1.5 rounded-full bg-brand-terracotta animate-pulse" />
+                92–97% extraction accuracy
+              </span>
+            </div>
             <h2 className="text-3xl font-serif tracking-wide text-white">
-              Workspace Active: Deep Data Extraction Systems Engaged.
+              Scan once. DocFlux handles the rest.
             </h2>
-            <p className="mt-3 text-brand-cream/80 max-w-lg">
+            <p className="mt-2 text-brand-cream/70 max-w-lg text-sm">
               {c.total} documents processed · {c.pending} awaiting review · {formatCurrency(analytics.totalSpend)} total spend tracked
             </p>
           </div>
@@ -144,9 +162,9 @@ export function DashboardSection() {
 
         <StaggerItem className="lg:col-span-1">
           <div className="relative overflow-hidden rounded-[14px] bg-white border border-brand-cream-border shadow-editorial p-6 h-full transition-shadow hover:shadow-activeCard flex flex-col justify-end">
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#10b981]" />
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-terracotta" />
             <div className="flex items-center justify-between mb-auto">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-[#10b981]/10 text-[#10b981]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-brand-terracotta-tint text-brand-terracotta">
                 <IndianRupee className="h-5 w-5" />
               </div>
             </div>
@@ -307,7 +325,7 @@ export function DashboardSection() {
           <Card className="premium-card rounded-2xl h-full">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <AlertTriangle className="h-4 w-4 text-brand-terracotta" />
                 Fraud Risk
               </CardTitle>
               <CardDescription>AI-flagged documents</CardDescription>
@@ -320,7 +338,7 @@ export function DashboardSection() {
                   analytics.fraudDistribution.map((f, i) => {
                     const total = analytics.fraudDistribution.reduce((a, b) => a + b.count, 0)
                     const pct = total > 0 ? (f.count / total) * 100 : 0
-                    const color = f.risk === 'HIGH' ? 'bg-rose-500' : f.risk === 'MEDIUM' ? 'bg-amber-500' : 'bg-emerald-500'
+                    const color = f.risk === 'HIGH' ? 'bg-brand-terracotta' : f.risk === 'MEDIUM' ? 'bg-brand-amber' : 'bg-brand-navy-700'
                     return (
                       <motion.div
                         key={f.risk}

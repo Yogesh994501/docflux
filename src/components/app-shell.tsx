@@ -4,7 +4,7 @@ import { useState, type ReactNode } from 'react'
 import { Sidebar } from '@/components/sidebar'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Menu, Sparkles, Database, Cpu } from 'lucide-react'
+import { Menu, Sparkles } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { useAnalyticsQuery, useStatusQuery, useSeedMutation } from '@/lib/queries'
 import { toast } from 'sonner'
@@ -76,12 +76,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
         <div className="flex items-center gap-1.5">
-          {status && (
-            <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-              <Cpu className="h-2.5 w-2.5" />
-              {status.ocr === 'gemini' ? 'Gemini' : 'GLM-4.6V'}
-            </span>
-          )}
         </div>
       </header>
 
@@ -155,7 +149,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="flex items-center gap-3">
                 <span className="flex items-center gap-1">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  Powered by {status?.ocr === 'gemini' ? 'Google Gemini' : 'Z.ai GLM-4.6V'}
+                  System operational
                 </span>
               </div>
             </div>

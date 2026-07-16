@@ -38,9 +38,20 @@ interface UploadItem {
 
 const ACCEPTED = 'image/jpeg,image/png,image/webp,image/gif,image/bmp,application/pdf'
 
+const DOC_TYPES = [
+  { value: 'auto', label: 'Auto-detect', emoji: '✨' },
+  { value: 'gst_invoice', label: 'GST Invoice', emoji: '📊' },
+  { value: 'bill_of_supply', label: 'Bill of Supply', emoji: '📜' },
+  { value: 'retail_receipt', label: 'Retail Receipt', emoji: '🚭' },
+  { value: 'restaurant', label: 'Restaurant', emoji: '🍽️' },
+  { value: 'medical', label: 'Medical', emoji: '🏥' },
+  { value: 'mobile_electronics', label: 'Mobile / Electronics', emoji: '📱' },
+]
+
 export function UploadSection() {
   const [items, setItems] = useState<UploadItem[]>([])
   const [dragOver, setDragOver] = useState(false)
+  const [docType, setDocType] = useState('auto')
   const inputRef = useRef<HTMLInputElement>(null)
   const uploadMut = useUploadMutation()
   const { openDetail, setSection } = useAppStore()
@@ -57,7 +68,7 @@ export function UploadSection() {
         const item: UploadItem = { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file, previewUrl, status: 'uploading' }
         setItems((prev) => [item, ...prev])
 
-        uploadMut.mutate(file, {
+        uploadMut.mutate({ file, docTypeHint: docType }, {
           onSuccess: (doc) => {
             setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, status: 'done', doc } : it)))
             toast.success(`"${file.name}" processed — ${doc.documentType ?? 'UNKNOWN'}`)
@@ -96,6 +107,26 @@ export function UploadSection() {
       </AnimatePresence>
       {/* Hero dropzone */}
       <FadeInUp>
+        {/* Document type selector */}
+        <div className="mb-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-brand-navy-700 mb-2">Document type</div>
+          <div className="flex flex-wrap gap-2">
+            {DOC_TYPES.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => setDocType(t.value)}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border transition-all ${
+                  docType === t.value
+                    ? 'bg-brand-terracotta text-white border-brand-terracotta shadow-sm'
+                    : 'bg-white border-brand-cream-border text-brand-navy-700 hover:border-brand-terracotta/40 hover:bg-brand-terracotta-tint'
+                }`}
+              >
+                <span>{t.emoji}</span>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="grid md:grid-cols-5 gap-8 items-center">
           <SpotlightCard className="p-0 overflow-hidden md:col-span-3">
             <div
@@ -129,7 +160,7 @@ export function UploadSection() {
           <div className="hidden md:block md:col-span-2 relative h-full min-h-[250px]">
             <img 
               src="/brand/mobile-capture.jpeg" 
-              alt="Mobile scanning" 
+              alt="Scanning a document with a smartphone" 
               className="absolute inset-0 w-full h-full object-cover rounded-[14px] shadow-editorial"
             />
           </div>
@@ -140,7 +171,7 @@ export function UploadSection() {
       <StaggerContainer className="grid gap-3 sm:grid-cols-3">
         {[
           { icon: ScanLine, title: '1 · Upload', desc: 'Drop an image or PDF of any document' },
-          { icon: Sparkles, title: '2 · AI OCR + Parse', desc: 'Vision model reads text & extracts fields' },
+          { icon: Sparkles, title: '2 · Agentic Parse', desc: 'AI understands layout — not just templates' },
           { icon: CheckCircle2, title: '3 · Review & Approve', desc: 'Verify data, then approve or reject' },
         ].map((s) => (
           <StaggerItem key={s.title}>
@@ -238,7 +269,7 @@ function UploadRow({ item, onRemove, onOpen }: { item: UploadItem; onRemove: (id
           )}
         </div>
         <div className="mt-1 text-xs">
-          {item.status === 'uploading' && <span className="flex items-center gap-1.5 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Running OCR & extracting fields…</span>}
+          {item.status === 'uploading' && <span className="flex items-center gap-1.5 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Classifying → extracting → verifying…</span>}
           {item.status === 'done' && item.doc && (
             <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="h-3 w-3" /> Processed · {item.doc.ocrConfidence ? `${(item.doc.ocrConfidence * 100).toFixed(0)}% confidence` : ''} · {formatRelativeTime(item.doc.uploadedAt)}

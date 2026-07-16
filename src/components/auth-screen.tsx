@@ -5,7 +5,7 @@ import { useAuth } from '@/components/auth-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ScanLine, Mail, Lock, User, Loader2, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { Mail, Lock, User, Loader2, ArrowRight, CheckCircle2, ShieldCheck, Zap, FileCheck } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 
@@ -26,7 +26,7 @@ export function AuthScreen() {
         toast.success('Welcome back!')
       } else {
         await signup(email, password, name)
-        toast.success('Account created — welcome to AutoFinDocs!')
+        toast.success('Account created — welcome to DocFlux!')
       }
     } catch (err) {
       toast.error((err as Error).message || 'Authentication failed')
@@ -40,12 +40,32 @@ export function AuthScreen() {
       {/* Left pane - Brand */}
       <div className="hidden lg:flex w-1/2 bg-brand-navy-950 items-center justify-center relative flex-col gap-6">
         <div className="absolute inset-0 bg-[url('/brand/document-stack.jpeg')] opacity-10 bg-cover bg-center mix-blend-overlay"></div>
-        <div className="relative z-10 flex flex-col items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-[14px] bg-brand-terracotta text-white shadow-lg">
-            <ScanLine className="h-8 w-8" />
+        {/* Warm terracotta gradient overlay for depth */}
+        <div className="absolute inset-0 bg-gradient-to-br from-brand-navy-950 via-brand-navy-950/95 to-brand-terracotta/10 pointer-events-none" />
+        <div className="relative z-10 flex flex-col items-center gap-5 px-12 text-center">
+          {/* Logo image */}
+          <div className="flex h-20 w-20 items-center justify-center rounded-[18px] overflow-hidden shadow-xl border border-white/10">
+            <img src="/brand/logo.jpeg" alt="DocFlux Logo" className="h-full w-full object-cover" />
           </div>
-          <h1 className="text-5xl font-serif font-semibold text-white tracking-wide">DocFlux</h1>
-          <p className="text-brand-navy-700 text-lg">Intelligent OCR & agentic parsing</p>
+          <div>
+            <h1 className="text-5xl font-serif font-semibold text-white tracking-wide">DocFlux</h1>
+            <p className="mt-2 text-brand-cream/60 text-base">Scan once. DocFlux handles the rest.</p>
+          </div>
+          {/* Trust proof points */}
+          <div className="mt-4 flex flex-col gap-3 w-full max-w-xs">
+            {[
+              { icon: Zap, text: '92–97% field extraction accuracy' },
+              { icon: FileCheck, text: 'GST e-Invoice validation built-in' },
+              { icon: ShieldCheck, text: 'Trusted by Indian finance teams' },
+            ].map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-terracotta/20">
+                  <Icon className="h-4 w-4 text-brand-terracotta" />
+                </div>
+                <span className="text-sm text-brand-cream/80">{text}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -59,13 +79,13 @@ export function AuthScreen() {
         >
           {/* Header for mobile (hidden on desktop) */}
           <div className="flex flex-col items-center gap-3 px-8 pt-8 pb-6 text-center lg:hidden">
-            <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-brand-terracotta text-white shadow-sm">
-              <ScanLine className="h-6 w-6" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-[12px] overflow-hidden shadow-sm border border-brand-cream-border">
+              <img src="/brand/logo.jpeg" alt="DocFlux Logo" className="h-full w-full object-cover" />
             </div>
             <div>
               <h1 className="text-xl font-serif font-semibold text-brand-navy-900">DocFlux</h1>
               <p className="mt-0.5 text-xs text-brand-navy-700">
-                Intelligent OCR & parsing
+                Scan once. DocFlux handles the rest.
               </p>
             </div>
           </div>

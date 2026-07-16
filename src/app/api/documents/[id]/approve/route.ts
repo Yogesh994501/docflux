@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { repo } from '@/lib/repository'
 import { auth } from '@/lib/auth'
 import { ok, err } from '@/lib/constants'
+import { storeVendorExample } from '@/lib/vendor-memory'
 
 export async function POST(
   req: NextRequest,
@@ -29,6 +30,23 @@ export async function POST(
       details: JSON.stringify({ comments }),
       actor: user.email,
     })
+
+    // ── Vendor memory: store this approved extraction as a few-shot example ──
+    // This is what powers the "Layout learned" badge and improves accuracy on
+    // repeat vendors. We only cache APPROVED documents — human-verified correct.
+    if (doc.extractedData) {
+      try {
+        const extracted = JSON.parse(doc.extractedData)
+        const gstin = extracted.vendorGstin?.trim() || undefined
+        const name = extracted.vendorName?.trim() || undefined
+        if (gstin || name) {
+          await storeVendorExample(gstin, name, doc.extractedData)
+          console.log(`[VendorMemory] Cached approved extraction for vendor: ${name ?? gstin}`)
+        }
+      } catch {
+        // Non-blocking — don't fail the approval if cache write fails
+      }
+    }
 
     return NextResponse.json(ok(updated))
   } catch (e) {
