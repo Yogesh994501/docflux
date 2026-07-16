@@ -44,10 +44,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="flex items-center justify-center rounded-xl"
         >
-          <img src="/brand/logo.jpeg" alt="DocFlux Logo" className="h-8 w-auto aspect-square object-contain" />
+          <img src="/logo.svg" alt="" className="h-8 w-auto aspect-square object-contain" />
         </motion.div>
         <div className="leading-tight">
-          <div className="font-serif font-semibold text-brand-navy-900 tracking-wide text-lg text-white">DocFlux</div>
+          <div className="font-serif font-semibold tracking-wide text-lg text-white">DocFlux</div>
         </div>
       </div>
 
@@ -73,10 +73,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 'group relative flex w-full items-center gap-3 rounded-[8px] px-4 py-3 text-sm transition-all duration-150',
                 active
                   ? 'bg-brand-terracotta-tint border-l-4 border-brand-terracotta text-brand-navy-950 font-medium shadow-sm'
-                  : 'text-brand-navy-700 hover:bg-brand-cream/10 hover:text-white',
+                  : 'text-[#8A95A8] hover:bg-brand-cream/10 hover:text-white',
               )}
             >
-              <Icon className={cn('h-[18px] w-[18px] shrink-0', active ? 'text-brand-terracotta' : 'text-brand-navy-700 group-hover:text-white')} />
+              <Icon className={cn('h-[18px] w-[18px] shrink-0', active ? 'text-brand-terracotta' : 'text-[#8A95A8] group-hover:text-white')} />
               <div className="min-w-0 flex-1 text-left">
                 <div className="font-sans text-sm tracking-wide">{item.label}</div>
               </div>
