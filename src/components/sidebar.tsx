@@ -12,6 +12,7 @@ import {
   Sparkles,
   UserCircle,
   SplitSquareHorizontal,
+  ChevronRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/components/auth-provider'
@@ -100,6 +101,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               <div className="truncate text-xs font-medium">{user.name}</div>
               <div className="truncate text-[10px] text-brand-navy-700/70 text-gray-400">{user.email}</div>
             </div>
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-brand-navy-700/60" />
           </button>
         </div>
       )}

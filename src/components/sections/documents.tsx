@@ -12,7 +12,7 @@ import {
 import { useAppStore } from '@/lib/store'
 import { DocTypeBadge, StatusBadge, FraudRiskBadge } from '@/components/shared-badges'
 import { DOCUMENT_TYPES, DOCUMENT_STATUSES, FRAUD_RISKS } from '@/lib/constants'
-import { Search, FileText, ChevronLeft, ChevronRight, X, FileSearch } from 'lucide-react'
+import { Search, FileText, ChevronLeft, ChevronRight, X, FileSearch, Upload } from 'lucide-react'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { SpotlightCard, FadeInUp, StaggerContainer, StaggerItem } from '@/components/motion-primitives'
@@ -72,7 +72,7 @@ export function DocumentsSection() {
           {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-52 rounded-2xl" />)}
         </div>
       ) : items.length === 0 ? (
-        <div className="relative overflow-hidden flex flex-col items-center justify-center gap-3 py-20 text-center rounded-[14px] border border-brand-cream-border shadow-editorial">
+          <div className="relative overflow-hidden flex flex-col items-center justify-center gap-3 py-20 text-center rounded-[14px] border border-brand-cream-border shadow-editorial">
           <img src="/brand/document-stack.jpeg" alt="Documents" className="absolute inset-0 w-full h-full object-cover blur-sm opacity-50" />
           <div className="absolute inset-0 bg-brand-cream/60" />
           <div className="relative z-10 flex flex-col items-center max-w-sm">
@@ -82,9 +82,23 @@ export function DocumentsSection() {
             <div className="text-lg font-serif text-brand-navy-900 mb-1">
               {hasFilters ? 'No documents match your filters' : 'No documents yet'}
             </div>
-            <div className="text-sm text-brand-navy-700">
-              {hasFilters ? 'Try clearing filters to see results.' : 'Drag new receipts or invoices here to invoke agentic parsing.'}
+            <div className="text-sm text-brand-navy-700 mb-5">
+              {hasFilters ? 'Try clearing filters to see results.' : 'Drop a receipt or invoice to invoke agentic parsing.'}
             </div>
+            {!hasFilters && (
+              <Button
+                onClick={() => useAppStore.getState().setSection('upload')}
+                className="rounded-[8px] bg-brand-terracotta hover:bg-brand-terracotta-hover text-white shadow-activeCard"
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Upload your first document
+              </Button>
+            )}
+            {hasFilters && (
+              <Button variant="outline" size="sm" onClick={() => { resetFilters(); setPage(1) }} className="rounded-lg">
+                <X className="mr-1.5 h-3.5 w-3.5" /> Clear filters
+              </Button>
+            )}
           </div>
         </div>
       ) : (

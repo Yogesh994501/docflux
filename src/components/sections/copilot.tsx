@@ -14,8 +14,8 @@ interface Msg { role: 'user' | 'assistant'; content: string }
 const SUGGESTIONS = [
   'What is GSTIN and how do I verify it?',
   'Explain the difference between CGST, SGST and IGST',
-  'What are common fraud indicators in invoices?',
-  'How does 3-way matching work (PO ↔ Invoice ↔ Challan)?',
+  'Why didn’t my vendor’s new invoice layout break parsing?',
+  'How does DocFlux handle documents it has never seen before?',
   'What documents do I need for GST compliance in India?',
 ]
 
@@ -50,7 +50,7 @@ export function CopilotSection() {
           <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-brand-navy-900 text-white"><Sparkles className="h-5 w-5" /></div>
-              <div><div className="text-sm font-semibold font-serif text-brand-navy-900">DocFlux Copilot</div><div className="text-xs text-brand-navy-700">Ask about documents, GST, invoices, fraud detection</div></div>
+              <div><div className="text-sm font-semibold font-serif text-brand-navy-900">DocFlux Copilot</div><div className="text-xs text-brand-navy-700">Ask about your documents, GST compliance, or how AI parsing works</div></div>
             </div>
             {hasAny && <Button variant="ghost" size="sm" onClick={() => setSessionMessages([])} className="rounded-lg"><Trash2 className="mr-1.5 h-3.5 w-3.5" /> Clear</Button>}
           </div>
@@ -63,7 +63,7 @@ export function CopilotSection() {
                 <div><div className="text-2xl font-serif text-brand-navy-900">Start a conversation</div><div className="mt-1 text-sm text-brand-navy-700">Try a suggestion or ask anything about your documents</div></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 w-full max-w-2xl text-left">
                   {SUGGESTIONS.map((s, i) => (
-                    <motion.button key={s} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.05 }} onClick={() => send(s)} className="bg-white hover:bg-brand-terracotta-tint border border-brand-cream-border hover:border-brand-terracotta/30 p-4 rounded-[8px] text-left text-sm text-brand-navy-900 transition-colors shadow-editorial">
+                    <motion.button key={s} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.05 }} onClick={() => send(s)} className="flex items-start min-h-[72px] bg-white hover:bg-brand-terracotta-tint border border-brand-cream-border hover:border-brand-terracotta/30 p-4 rounded-[8px] text-left text-sm text-brand-navy-900 transition-colors shadow-editorial">
                       {s}
                     </motion.button>
                   ))}

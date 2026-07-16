@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useVendorsQuery, useCreateVendorMutation, formatCurrency } from '@/lib/queries'
-import { Building2, Search, Plus, Mail, Phone, MapPin, FileText, IndianRupee } from 'lucide-react'
+import { Building2, Search, Plus, Mail, Phone, MapPin, FileText, IndianRupee, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { SpotlightCard, FadeInUp, StaggerContainer, StaggerItem, AnimatedCounter } from '@/components/motion-primitives'
 
@@ -31,13 +31,13 @@ export function VendorsSection() {
         </FadeInUp>
         <FadeInUp delay={0.05}>
           <SpotlightCard className="flex items-center gap-3 p-4 h-full">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-300"><FileText className="h-5 w-5" /></div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-navy-800/10 text-brand-navy-800"><FileText className="h-5 w-5" /></div>
             <div><div className="text-2xl font-semibold tracking-tight tabular-nums"><AnimatedCounter value={totalDocs} /></div><div className="text-xs text-muted-foreground">Linked documents</div></div>
           </SpotlightCard>
         </FadeInUp>
         <FadeInUp delay={0.1}>
           <SpotlightCard className="flex items-center gap-3 p-4 h-full">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300"><IndianRupee className="h-5 w-5" /></div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-terracotta-tint text-brand-terracotta"><IndianRupee className="h-5 w-5" /></div>
             <div><div className="text-2xl font-semibold tracking-tight"><AnimatedCounter value={totalSpend} format={formatCurrency} /></div><div className="text-xs text-muted-foreground">Total spend</div></div>
           </SpotlightCard>
         </FadeInUp>
@@ -73,7 +73,15 @@ export function VendorsSection() {
                     <div className="truncate text-sm font-semibold" title={v.name}>{v.name}</div>
                     {v.gstin && <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">{v.gstin}</div>}
                   </div>
-                  {v.category && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{v.category}</span>}
+                  <div className="flex flex-col items-end gap-1.5">
+                    {v.category && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{v.category}</span>}
+                    {(v.documentCount ?? 0) >= 3 && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-brand-terracotta-tint border border-brand-terracotta/20 px-2 py-0.5 text-[10px] font-semibold text-brand-terracotta">
+                        <CheckCircle2 className="h-2.5 w-2.5" />
+                        Layout learned
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-3 space-y-1 text-xs text-muted-foreground">
                   {v.email && <div className="flex items-center gap-1.5"><Mail className="h-3 w-3" /> <span className="truncate">{v.email}</span></div>}

@@ -46,6 +46,8 @@ export async function POST(req: NextRequest) {
     }
 
     const source = (formData.get('source') as string) || 'web'
+    // docTypeHint: optional user-selected type from the Upload section selector
+    const docTypeHint = (formData.get('docTypeHint') as string) || 'auto'
 
     const allowedTypes = [
       'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp',
@@ -92,7 +94,9 @@ export async function POST(req: NextRequest) {
     })
 
     try {
-      const result = await processDocument(savedPath, file.name)
+      const result = await processDocument(savedPath, file.name,
+        docTypeHint !== 'auto' ? { name: docTypeHint } : undefined,
+      )
 
       await repo.updateDocument(doc.id, {
         ocrText: result.ocrText.slice(0, 200000),
@@ -101,7 +105,8 @@ export async function POST(req: NextRequest) {
         extractedData: JSON.stringify(result.extracted),
         documentType: result.extracted.documentType,
         fraudRisk: result.extracted.fraudRisk,
-        status: 'EXTRACTED',
+        // Smart routing: low confidence / missing fields → PENDING_REVIEW for human review
+        status: result.suggestedStatus,
         processedAt: new Date().toISOString(),
       })
 
@@ -110,8 +115,15 @@ export async function POST(req: NextRequest) {
         action: 'EXTRACTED',
         details: JSON.stringify({
           type: result.extracted.documentType,
+          classifiedAs: result.extracted.classifiedAs,
           confidence: result.confidence,
+          extractionConfidence: result.extracted.extractionConfidence,
           fraudRisk: result.extracted.fraudRisk,
+          suggestedStatus: result.suggestedStatus,
+          missingMandatoryFields: result.extracted.missingMandatoryFields,
+          totalsVerified: result.extracted.totalsVerified,
+          gstinValid: result.extracted.gstinValid,
+          pipelinePasses: result.extracted.pipelinePasses,
           provider: result.provider,
         }),
       })
@@ -120,7 +132,7 @@ export async function POST(req: NextRequest) {
       const gstin = result.extracted.vendorGstin?.trim()
       const vname = result.extracted.vendorName?.trim()
       if (gstin || vname) {
-        let vendor = null
+        let vendor: Awaited<ReturnType<typeof repo.findVendorByGstin>> = null
         if (gstin) vendor = await repo.findVendorByGstin(gstin, user.id)
         if (!vendor && vname) vendor = await repo.findVendorByName(vname, user.id)
         if (vendor) {
