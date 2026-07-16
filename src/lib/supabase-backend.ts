@@ -30,6 +30,7 @@ export interface SupabaseRepo {
   createCopilotMessage(role: string, content: string, userId?: string): Promise<void>
   clearAll(userId?: string): Promise<void>
   groupBy(field: 'documentType' | 'status' | 'fraudRisk', userId?: string): Promise<{ key: string | null; count: number }[]>
+  getSpendTrendDocs(userId?: string): Promise<{ uploadedAt: string; extractedData: string | null }[]>
 }
 
 let client: SupabaseClient | null = null
@@ -306,19 +307,40 @@ export function createSupabaseBackend(): SupabaseRepo {
       }
     },
 
-    async groupBy(field, userId) {
-      const sb = getClient()
-      const column = field === 'documentType' ? 'document_type' : field === 'fraudRisk' ? 'fraud_risk' : 'status'
-      let query = sb.from('documents').select(column)
+    async groupBy(field: 'documentType' | 'status' | 'fraudRisk', userId?: string) {
+      const dbField = field === 'documentType' ? 'document_type' : field === 'fraudRisk' ? 'fraud_risk' : 'status'
+      
+      let query = getClient().from('documents').select(dbField)
       if (userId) query = query.eq('user_id', userId)
+        
       const { data, error } = await query
-      if (error) throw new Error(`Supabase groupBy: ${error.message}`)
-      const counts = new Map<string, number>()
-      for (const row of data ?? []) {
-        const key = (row as any)[column] ?? 'UNKNOWN'
-        counts.set(key, (counts.get(key) ?? 0) + 1)
+      if (error) throw error
+
+      const counts: Record<string, number> = {}
+      for (const row of data) {
+        const val = row[dbField] || 'UNKNOWN'
+        counts[val] = (counts[val] || 0) + 1
       }
-      return Array.from(counts.entries()).map(([key, count]) => ({ key, count }))
+      return Object.entries(counts).map(([key, count]) => ({ key, count }))
     },
+
+    async getSpendTrendDocs(userId?: string) {
+      let query = getClient()
+        .from('documents')
+        .select('uploaded_at, extracted_data')
+        .order('uploaded_at', { ascending: false })
+        .limit(1000)
+      
+      if (userId) {
+        query = query.eq('user_id', userId)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+      return data.map((d: any) => ({
+        uploadedAt: d.uploaded_at,
+        extractedData: d.extracted_data
+      }))
+    }
   }
 }

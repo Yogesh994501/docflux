@@ -141,7 +141,7 @@ export default function LandingPage() {
             {/* Hero image */}
             <FadeUp delay={0.1}>
               <div className="relative overflow-hidden rounded-2xl shadow-2xl">
-                <img src="/brand/dashboard-hero.jpeg" alt="DocFlux scanning a document with AI field detection" className="w-full object-cover" style={{ aspectRatio: '4/3' }} />
+                <img src="/brand/team-collab.jpeg" alt="DocFlux scanning a document with AI field detection" className="w-full object-cover" style={{ aspectRatio: '4/3' }} />
                 <div className="absolute bottom-4 left-4 flex items-center gap-3 rounded-xl border border-[#EAE6DF]/80 bg-white/90 px-4 py-2.5 shadow-lg backdrop-blur-sm">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FBF1EE]">
                     <CheckCircle2 className="h-4 w-4 text-[#C1592A]" />
@@ -302,7 +302,7 @@ export default function LandingPage() {
 
           <FadeUp delay={0.2} className="mt-12">
             <div className="overflow-hidden rounded-2xl shadow-xl">
-              <img src="/brand/team-collab.jpeg" alt="DocFlux team collaborating" className="w-full object-cover" style={{ maxHeight: '320px', objectPosition: 'center 30%' }} />
+              <img src="/brand/dashboard-hero.jpeg" alt="DocFlux team collaborating" className="w-full object-cover" style={{ maxHeight: '320px', objectPosition: 'center 30%' }} />
             </div>
           </FadeUp>
         </div>

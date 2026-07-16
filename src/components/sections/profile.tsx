@@ -58,12 +58,8 @@ export function ProfileSection() {
       {/* Profile header */}
       <FadeInUp>
         <SpotlightCard className="overflow-hidden p-0 border-brand-cream-border">
-          <div className="h-48 w-full">
-            <img 
-              src="/brand/team-collab.jpeg" 
-              alt="Team" 
-              className="h-full w-full object-cover object-[center_30%]"
-            />
+          <div className="h-48 w-full bg-gradient-to-r from-brand-navy-900 to-brand-navy-800">
+            {/* Empty brand gradient cover instead of team photo */}
           </div>
           <div className="flex items-center gap-5 p-6 bg-white">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[14px] bg-brand-navy-900 text-xl font-serif text-white shadow-sm border-2 border-white -mt-12 relative z-10">
