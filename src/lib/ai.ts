@@ -780,6 +780,16 @@ Be concise, professional, and genuinely helpful. Use bullet points and short par
 When explaining why a new vendor's invoice didn't break parsing, explain the classify→extract→reflect pipeline.
 When asked about "Layout learned", explain the vendor memory few-shot caching system.`
 
+  if (getProvider() === 'gemini') {
+    const ai = getGemini()
+    const prompt = systemPrompt + '\n\n' + messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n')
+    const response = await ai.models.generateContent({
+      model: getGeminiModel(),
+      contents: prompt
+    })
+    return response.text || 'No response generated.'
+  }
+
   const completion = await zai.chat.completions.create({
     messages: [
       { role: 'assistant', content: systemPrompt },
