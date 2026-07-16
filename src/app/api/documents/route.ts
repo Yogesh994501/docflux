@@ -3,9 +3,11 @@ import { repo } from '@/lib/repository'
 import { auth } from '@/lib/auth'
 import { processDocument } from '@/lib/ai'
 import { ok, err } from '@/lib/constants'
-import { writeFile, mkdir } from 'fs/promises'
+import { writeFile, mkdir, copyFile } from 'fs/promises'
 import path from 'path'
+import os from 'os'
 import { randomUUID } from 'crypto'
+import { createClient } from '@supabase/supabase-js'
 
 // ─── GET /api/documents — list (scoped to current user) ──────────────────────
 
@@ -64,24 +66,46 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(err('File too large. Max 10 MB.'), { status: 400 })
     }
 
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads')
-    await mkdir(uploadDir, { recursive: true })
-
+    // 1. Save temporarily to /tmp (works in Vercel serverless functions)
+    const tmpDir = path.join(os.tmpdir(), 'docflux-uploads')
+    await mkdir(tmpDir, { recursive: true })
     const ext = path.extname(file.name) || (file.type === 'application/pdf' ? '.pdf' : '.jpg')
     const savedName = `${Date.now()}-${randomUUID()}${ext}`
-    const savedPath = path.join(uploadDir, savedName)
+    const tmpPath = path.join(tmpDir, savedName)
 
     const bytes = await file.arrayBuffer()
-    await writeFile(savedPath, Buffer.from(bytes))
+    const buffer = Buffer.from(bytes)
+    await writeFile(tmpPath, buffer)
 
-    const relativePath = `/uploads/${savedName}`
+    // 2. Determine persistent storage path
+    let storageUrl = ''
+    if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+      // Upload to Supabase Storage
+      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, { auth: { persistSession: false } })
+      const { error: uploadError } = await supabase.storage
+        .from('uploads')
+        .upload(savedName, buffer, { contentType: file.type, upsert: true })
+      
+      if (uploadError) {
+        console.error('[Supabase Storage Error]', uploadError)
+        return NextResponse.json(err('Failed to upload file to cloud storage'), { status: 500 })
+      }
+      const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(savedName)
+      storageUrl = publicUrlData.publicUrl
+    } else {
+      // Local development fallback: copy from /tmp to public/uploads
+      const localUploadDir = path.join(process.cwd(), 'public', 'uploads')
+      await mkdir(localUploadDir, { recursive: true })
+      await copyFile(tmpPath, path.join(localUploadDir, savedName))
+      storageUrl = `/uploads/${savedName}`
+    }
 
     const doc = await repo.createDocument({
       fileName: file.name,
       fileType: file.type,
       fileSize: file.size,
-      storagePath: relativePath,
-      thumbnailPath: relativePath,
+      storagePath: storageUrl,
+      thumbnailPath: storageUrl,
       source,
       status: 'PROCESSING',
       userId: user.id,
@@ -94,7 +118,7 @@ export async function POST(req: NextRequest) {
     })
 
     try {
-      const result = await processDocument(savedPath, file.name,
+      const result = await processDocument(tmpPath, file.name,
         docTypeHint !== 'auto' ? { name: docTypeHint } : undefined,
       )
 
