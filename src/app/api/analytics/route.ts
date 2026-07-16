@@ -30,11 +30,11 @@ export async function GET(_req: NextRequest) {
 
     const now = new Date()
     const months: { label: string; spend: number; count: number }[] = []
-    const { items: allDocs } = await repo.listDocuments({ page: 1, pageSize: 1000, userId })
+    const trendDocs = await repo.getSpendTrendDocs(userId)
     for (let i = 5; i >= 0; i--) {
       const start = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
-      const monthDocs = allDocs.filter((d) => new Date(d.uploadedAt) >= start && new Date(d.uploadedAt) < end)
+      const monthDocs = trendDocs.filter((d) => new Date(d.uploadedAt) >= start && new Date(d.uploadedAt) < end)
       let spend = 0
       for (const d of monthDocs) {
         if (d.extractedData) {
