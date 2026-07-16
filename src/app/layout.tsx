@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "DocFlux" }],
   icons: {
-    icon: "/brand/logo.jpeg",
+    icon: "/logo.svg",
   },
 };
 

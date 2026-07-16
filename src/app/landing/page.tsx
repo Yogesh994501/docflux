@@ -68,7 +68,7 @@ export default function LandingPage() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <a href="/landing" className="flex items-center gap-2.5">
             <div className="h-8 w-8 overflow-hidden rounded-lg border border-[#EAE6DF]">
-              <img src="/brand/logo.jpeg" alt="DocFlux" className="h-full w-full object-cover" />
+              <img src="/logo.svg" alt="DocFlux" className="h-full w-full object-cover" />
             </div>
             <span className="font-serif text-lg font-semibold text-[#1B2A41]">DocFlux</span>
           </a>
@@ -332,7 +332,7 @@ export default function LandingPage() {
           <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
             <div className="flex items-center gap-2.5">
               <div className="h-7 w-7 overflow-hidden rounded-lg border border-[#EAE6DF]">
-                <img src="/brand/logo.jpeg" alt="DocFlux" className="h-full w-full object-cover" />
+                <img src="/logo.svg" alt="DocFlux" className="h-full w-full object-cover" />
               </div>
               <span className="font-serif text-sm font-semibold text-[#1B2A41]">DocFlux</span>
               <span className="text-xs text-[#2C3A54]">— Scan once. DocFlux handles the rest.</span>
