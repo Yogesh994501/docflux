@@ -71,7 +71,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </SheetContent>
           </Sheet>
           <div className="flex items-center gap-2">
-            <img src="/logo.svg" alt="" className="h-7 w-auto aspect-square object-contain" />
+            <img src="/logo.jpeg" alt="" className="h-7 w-auto aspect-square object-contain" />
             <span className="text-sm font-semibold font-serif">DocFlux</span>
           </div>
         </div>
@@ -139,7 +139,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <footer className="mt-auto border-t border-border/60 glass px-4 py-4 sm:px-6 lg:px-8">
             <div className="flex flex-col items-center justify-between gap-2 text-[11px] text-muted-foreground sm:flex-row">
               <div className="flex items-center gap-1.5">
-                <img src="/logo.svg" alt="" className="h-4 w-auto grayscale opacity-70" />
+                <img src="/logo.jpeg" alt="" className="h-4 w-auto grayscale opacity-70" />
                 <span>
                   <span className="font-semibold font-serif text-foreground/80">DocFlux</span>
                   {' — '}

@@ -124,6 +124,23 @@ async function prismaListDocuments(params: DocListParams): Promise<{ items: Docu
   }
 }
 
+async function prismaGetSpendTrendDocs(userId?: string) {
+  const where: Record<string, unknown> = {}
+  if (userId) where.userId = userId
+
+  const docs = await prisma.document.findMany({
+    where,
+    select: { uploadedAt: true, extractedData: true },
+    orderBy: { uploadedAt: 'desc' },
+    take: 1000,
+  })
+
+  return docs.map((d) => ({
+    uploadedAt: d.uploadedAt.toISOString(),
+    extractedData: d.extractedData,
+  }))
+}
+
 function mapPrismaDoc(d: any): DocumentRow {
   return {
     id: d.id,
@@ -423,4 +440,10 @@ export const repo = {
       ? getSupabase().groupBy(field, userId)
       : prismaGroupBy(field, userId)
   },
+
+  async getSpendTrendDocs(userId?: string) {
+    return isSupabaseEnabled()
+      ? getSupabase().getSpendTrendDocs(userId)
+      : prismaGetSpendTrendDocs(userId)
+  }
 }
