@@ -45,7 +45,7 @@ export function AuthScreen() {
         <div className="relative z-10 flex flex-col items-center gap-5 px-12 text-center">
           {/* Logo image */}
           <div className="flex h-20 w-20 items-center justify-center rounded-[18px] overflow-hidden shadow-xl border border-white/10">
-            <img src="/logo.svg" alt="DocFlux Logo" className="h-full w-full object-cover" />
+            <img src="/logo.jpeg" alt="DocFlux Logo" className="h-full w-full object-cover" />
           </div>
           <div>
             <h1 className="text-5xl font-serif font-semibold text-white tracking-wide">DocFlux</h1>
@@ -80,7 +80,7 @@ export function AuthScreen() {
           {/* Header for mobile (hidden on desktop) */}
           <div className="flex flex-col items-center gap-3 px-8 pt-8 pb-6 text-center lg:hidden">
             <div className="flex h-12 w-12 items-center justify-center rounded-[12px] overflow-hidden shadow-sm border border-brand-cream-border">
-              <img src="/logo.svg" alt="DocFlux Logo" className="h-full w-full object-cover" />
+              <img src="/logo.jpeg" alt="DocFlux Logo" className="h-full w-full object-cover" />
             </div>
             <div>
               <h1 className="text-xl font-serif font-semibold text-brand-navy-900">DocFlux</h1>

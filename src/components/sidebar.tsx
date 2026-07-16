@@ -44,7 +44,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="flex items-center justify-center rounded-xl"
         >
-          <img src="/logo.svg" alt="" className="h-8 w-auto aspect-square object-contain" />
+          <img src="/logo.jpeg" alt="" className="h-8 w-auto aspect-square object-contain" />
         </motion.div>
         <div className="leading-tight">
           <div className="font-serif font-semibold tracking-wide text-lg text-white">DocFlux</div>
