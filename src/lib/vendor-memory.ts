@@ -28,7 +28,9 @@ export interface VendorExample {
 
 type CacheKey = string // GSTIN (preferred) or normalized vendor name
 
-const CACHE_FILE = path.join(process.cwd(), '.vendor-memory.json')
+import os from 'os'
+
+const CACHE_FILE = path.join(os.tmpdir(), '.vendor-memory.json')
 
 // ─── In-memory store ──────────────────────────────────────────────────────────
 
