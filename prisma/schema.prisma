@@ -24,6 +24,8 @@ model User {
   documents       Document[]
   vendors         Vendor[]
   copilotMessages CopilotMessage[]
+  vendorMemories  VendorMemory[]
+  auditLogs       AuditLog[]
 }
 
 // ─── Documents (scoped to a user) ─────────────────────────────────────────────
@@ -56,6 +58,12 @@ model Document {
   userId         String
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  irn            String?
+  gstinValid     Boolean?
+  totalsVerified Boolean?
+  missingFields  String?
+  pipelinePasses Int?
+
   uploadedAt     DateTime @default(now())
   processedAt    DateTime?
   approvedAt     DateTime?
@@ -69,6 +77,7 @@ model Document {
   @@index([vendorId])
   @@index([userId])
   @@index([uploadedAt])
+  @@index([irn])
 }
 
 // ─── Vendors / Customers (scoped to a user) ───────────────────────────────────
@@ -85,6 +94,10 @@ model Vendor {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   documents   Document[]
+  totalDocuments  Int       @default(0)
+  totalSpend      Float     @default(0)
+  lastDocumentAt  DateTime?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -103,9 +116,13 @@ model AuditLog {
   details     String?
   actor       String?  @default("system")
   timestamp   DateTime @default(now())
+  
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([documentId])
   @@index([action])
+  @@index([userId])
 }
 
 // ─── AI Copilot Conversations (scoped to a user) ──────────────────────────────
@@ -119,5 +136,24 @@ model CopilotMessage {
   createdAt   DateTime @default(now())
 
   @@index([createdAt])
+  @@index([userId])
+}
+
+// ─── Vendor Layout Memory (scoped to a user) ──────────────────────────────────
+
+model VendorMemory {
+  id            String   @id @default(cuid())
+  cacheKey      String
+  vendorName    String
+  gstin         String?
+  extractedJson String
+  hitCount      Int      @default(0)
+  storedAt      DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cacheKey])
   @@index([userId])
 }

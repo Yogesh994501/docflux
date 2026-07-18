@@ -39,6 +39,13 @@ export interface DocumentRow {
   createdAt: string
   updatedAt: string
   auditLogs?: AuditLogRow[]
+
+  // AI Pipeline fields
+  irn: string | null
+  gstinValid: boolean | null
+  totalsVerified: boolean | null
+  missingFields: string | null
+  pipelinePasses: number | null
 }
 
 export interface VendorRow {
@@ -54,6 +61,8 @@ export interface VendorRow {
   updatedAt: string
   documentCount?: number
   totalSpend?: number
+  totalDocuments?: number
+  lastDocumentAt?: string | null
 }
 
 export interface AuditLogRow {
@@ -63,6 +72,19 @@ export interface AuditLogRow {
   details: string | null
   actor: string | null
   timestamp: string
+  userId: string | null
+}
+
+export interface VendorMemoryRow {
+  id: string
+  cacheKey: string
+  vendorName: string
+  gstin: string | null
+  extractedJson: string
+  hitCount: number
+  storedAt: string
+  updatedAt: string
+  userId: string | null
 }
 
 export interface CopilotMessageRow {
@@ -166,6 +188,11 @@ function mapPrismaDoc(d: any): DocumentRow {
     approvedAt: d.approvedAt?.toISOString() ?? null,
     createdAt: d.createdAt.toISOString(),
     updatedAt: d.updatedAt.toISOString(),
+    irn: d.irn ?? null,
+    gstinValid: d.gstinValid ?? null,
+    totalsVerified: d.totalsVerified ?? null,
+    missingFields: d.missingFields ?? null,
+    pipelinePasses: d.pipelinePasses ?? null,
   }
 }
 
@@ -181,6 +208,10 @@ function mapPrismaVendor(v: any): VendorRow {
     category: v.category,
     createdAt: v.createdAt.toISOString(),
     updatedAt: v.updatedAt.toISOString(),
+    documentCount: v.totalDocuments ?? 0,
+    totalSpend: v.totalSpend ?? 0,
+    totalDocuments: v.totalDocuments ?? 0,
+    lastDocumentAt: v.lastDocumentAt?.toISOString() ?? null,
   }
 }
 
@@ -192,6 +223,7 @@ function mapPrismaAudit(a: any): AuditLogRow {
     details: a.details,
     actor: a.actor,
     timestamp: a.timestamp.toISOString(),
+    userId: a.userId ?? null,
   }
 }
 
@@ -210,6 +242,40 @@ async function prismaGetDocument(id: string, userId?: string): Promise<DocumentR
   return row
 }
 
+async function prismaUpdateVendorCounters(vendorId: string): Promise<void> {
+  const docs = await prisma.document.findMany({
+    where: { vendorId },
+    select: { extractedData: true, uploadedAt: true },
+  })
+  
+  let totalSpend = 0
+  let lastDocumentAt: Date | null = null
+  
+  for (const d of docs) {
+    if (d.uploadedAt) {
+      if (!lastDocumentAt || d.uploadedAt > lastDocumentAt) {
+        lastDocumentAt = d.uploadedAt
+      }
+    }
+    if (d.extractedData) {
+      try {
+        const parsed = JSON.parse(d.extractedData)
+        const amt = parseFloat(String(parsed.totalAmount ?? '0').replace(/[^0-9.]/g, ''))
+        if (!isNaN(amt)) totalSpend += amt
+      } catch {}
+    }
+  }
+  
+  await prisma.vendor.update({
+    where: { id: vendorId },
+    data: {
+      totalDocuments: docs.length,
+      totalSpend,
+      lastDocumentAt,
+    }
+  })
+}
+
 async function prismaCreateDocument(data: Partial<DocumentRow> & { fileName: string; fileType: string; fileSize: number; storagePath: string; source: string; status: string; userId: string }): Promise<DocumentRow> {
   const d = await prisma.document.create({
     data: {
@@ -222,22 +288,48 @@ async function prismaCreateDocument(data: Partial<DocumentRow> & { fileName: str
       source: data.source,
       status: data.status,
       userId: data.userId,
+      irn: data.irn ?? null,
+      gstinValid: data.gstinValid ?? null,
+      totalsVerified: data.totalsVerified ?? null,
+      missingFields: data.missingFields ?? null,
+      pipelinePasses: data.pipelinePasses ?? null,
     },
   })
   return mapPrismaDoc(d)
 }
 
 async function prismaUpdateDocument(id: string, data: Record<string, unknown>): Promise<DocumentRow | null> {
+  const oldDoc = await prisma.document.findUnique({ where: { id }, select: { vendorId: true } })
   const d = await prisma.document.update({ where: { id }, data, include: { vendor: true } })
+  
+  if (d.vendorId) {
+    await prismaUpdateVendorCounters(d.vendorId)
+  }
+  if (oldDoc && oldDoc.vendorId && oldDoc.vendorId !== d.vendorId) {
+    await prismaUpdateVendorCounters(oldDoc.vendorId)
+  }
+  
   return mapPrismaDoc(d)
 }
 
 async function prismaDeleteDocument(id: string): Promise<void> {
+  const doc = await prisma.document.findUnique({ where: { id }, select: { vendorId: true } })
   await prisma.document.delete({ where: { id } })
+  if (doc && doc.vendorId) {
+    await prismaUpdateVendorCounters(doc.vendorId)
+  }
 }
 
-async function prismaCreateAuditLog(data: { documentId: string; action: string; details?: string | null; actor?: string | null }): Promise<void> {
-  await prisma.auditLog.create({ data })
+async function prismaCreateAuditLog(data: { documentId: string; action: string; details?: string | null; actor?: string | null; userId?: string | null }): Promise<void> {
+  await prisma.auditLog.create({
+    data: {
+      documentId: data.documentId,
+      action: data.action,
+      details: data.details ?? null,
+      actor: data.actor ?? 'system',
+      userId: data.userId ?? null,
+    }
+  })
 }
 
 async function prismaListVendors(search?: string, userId?: string): Promise<VendorRow[]> {
@@ -253,32 +345,8 @@ async function prismaListVendors(search?: string, userId?: string): Promise<Vend
   const vendors = await prisma.vendor.findMany({
     where,
     orderBy: { name: 'asc' },
-    include: { _count: { select: { documents: true } } },
   })
-  // Enrich with total spend
-  const enriched: VendorRow[] = []
-  for (const v of vendors) {
-    const docs = await prisma.document.findMany({
-      where: { vendorId: v.id },
-      select: { extractedData: true },
-    })
-    let totalSpend = 0
-    for (const d of docs) {
-      if (d.extractedData) {
-        try {
-          const data = JSON.parse(d.extractedData)
-          const amt = parseFloat(String(data.totalAmount ?? '0').replace(/[^0-9.]/g, ''))
-          if (!isNaN(amt)) totalSpend += amt
-        } catch { /* ignore */ }
-      }
-    }
-    enriched.push({
-      ...mapPrismaVendor(v),
-      documentCount: (v as any)._count?.documents ?? 0,
-      totalSpend,
-    })
-  }
-  return enriched
+  return vendors.map(mapPrismaVendor)
 }
 
 async function prismaCreateVendor(data: { name: string; gstin?: string | null; pan?: string | null; email?: string | null; phone?: string | null; address?: string | null; category?: string | null; userId: string }): Promise<VendorRow> {
@@ -327,12 +395,75 @@ async function prismaClearAll(userId?: string): Promise<void> {
     await prisma.document.deleteMany({ where: { userId } })
     await prisma.vendor.deleteMany({ where: { userId } })
     await prisma.copilotMessage.deleteMany({ where: { userId } })
+    await prisma.vendorMemory.deleteMany({ where: { userId } })
   } else {
     await prisma.auditLog.deleteMany()
     await prisma.document.deleteMany()
     await prisma.vendor.deleteMany()
     await prisma.copilotMessage.deleteMany()
+    await prisma.vendorMemory.deleteMany()
   }
+}
+
+function mapPrismaVendorMemory(m: any): VendorMemoryRow {
+  return {
+    id: m.id,
+    cacheKey: m.cacheKey,
+    vendorName: m.vendorName,
+    gstin: m.gstin ?? null,
+    extractedJson: m.extractedJson,
+    hitCount: m.hitCount,
+    storedAt: m.storedAt.toISOString(),
+    updatedAt: m.updatedAt.toISOString(),
+    userId: m.userId ?? null,
+  }
+}
+
+async function prismaGetVendorMemory(userId: string | null, cacheKey: string): Promise<VendorMemoryRow | null> {
+  const row = await prisma.vendorMemory.findFirst({
+    where: { userId, cacheKey }
+  })
+  if (!row) return null
+  // Non-blocking hit count increment
+  prisma.vendorMemory.update({
+    where: { id: row.id },
+    data: { hitCount: { increment: 1 } }
+  }).catch(() => {})
+  
+  return mapPrismaVendorMemory(row)
+}
+
+async function prismaStoreVendorMemory(userId: string | null, data: { cacheKey: string; vendorName: string; gstin?: string | null; extractedJson: string }): Promise<void> {
+  const existing = await prisma.vendorMemory.findFirst({
+    where: { userId, cacheKey: data.cacheKey }
+  })
+  if (existing) {
+    await prisma.vendorMemory.update({
+      where: { id: existing.id },
+      data: {
+        vendorName: data.vendorName,
+        gstin: data.gstin ?? null,
+        extractedJson: data.extractedJson,
+      }
+    })
+  } else {
+    await prisma.vendorMemory.create({
+      data: {
+        userId,
+        cacheKey: data.cacheKey,
+        vendorName: data.vendorName,
+        gstin: data.gstin ?? null,
+        extractedJson: data.extractedJson,
+      }
+    })
+  }
+}
+
+async function prismaHasVendorMemory(userId: string | null, cacheKey: string): Promise<boolean> {
+  const count = await prisma.vendorMemory.count({
+    where: { userId, cacheKey }
+  })
+  return count > 0
 }
 
 async function prismaGroupBy(field: 'documentType' | 'status' | 'fraudRisk', userId?: string): Promise<{ key: string | null; count: number }[]> {
@@ -445,5 +576,23 @@ export const repo = {
     return isSupabaseEnabled()
       ? getSupabase().getSpendTrendDocs(userId)
       : prismaGetSpendTrendDocs(userId)
+  },
+
+  async getVendorMemory(userId: string | null, cacheKey: string) {
+    return isSupabaseEnabled()
+      ? getSupabase().getVendorMemory(userId, cacheKey)
+      : prismaGetVendorMemory(userId, cacheKey)
+  },
+
+  async storeVendorMemory(userId: string | null, data: { cacheKey: string; vendorName: string; gstin?: string | null; extractedJson: string }) {
+    return isSupabaseEnabled()
+      ? getSupabase().storeVendorMemory(userId, data)
+      : prismaStoreVendorMemory(userId, data)
+  },
+
+  async hasVendorMemory(userId: string | null, cacheKey: string) {
+    return isSupabaseEnabled()
+      ? getSupabase().hasVendorMemory(userId, cacheKey)
+      : prismaHasVendorMemory(userId, cacheKey)
   }
 }

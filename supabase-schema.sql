@@ -159,3 +159,66 @@ drop trigger if exists trg_documents_touch on documents;
 create trigger trg_documents_touch before update on documents for each row execute function touch_updated_at();
 drop trigger if exists trg_vendors_touch   on vendors;
 create trigger trg_vendors_touch   before update on vendors   for each row execute function touch_updated_at();
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Schema updates for AI pipeline, denormalized stats & vendor memory
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Alter documents to add pipeline fields
+alter table documents add column if not exists irn text;
+alter table documents add column if not exists gstin_valid boolean;
+alter table documents add column if not exists totals_verified boolean;
+alter table documents add column if not exists missing_fields text;
+alter table documents add column if not exists pipeline_passes integer;
+create index if not exists idx_documents_irn on documents(irn);
+
+-- Alter vendors to add denormalized counters
+alter table vendors add column if not exists total_documents integer not null default 0;
+alter table vendors add column if not exists total_spend double precision not null default 0.0;
+alter table vendors add column if not exists last_document_at timestamptz;
+
+-- Alter audit_logs to add user scoping
+alter table audit_logs add column if not exists user_id uuid references auth.users(id) on delete set null;
+create index if not exists idx_audit_user on audit_logs(user_id);
+
+-- Create vendor_memory table for layout learning
+create table if not exists vendor_memory (
+  id             uuid primary key default gen_random_uuid(),
+  cache_key      text not null,
+  vendor_name    text not null,
+  gstin          text,
+  extracted_json text not null,
+  hit_count      integer not null default 0,
+  stored_at      timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+  user_id        uuid references auth.users(id) on delete cascade
+);
+
+create unique index if not exists idx_vendor_memory_user_key on vendor_memory(user_id, cache_key);
+create index if not exists idx_vendor_memory_user on vendor_memory(user_id);
+
+alter table vendor_memory enable row level security;
+
+create policy "own vendor_memory all" on vendor_memory for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop trigger if exists trg_vendor_memory_touch on vendor_memory;
+create trigger trg_vendor_memory_touch before update on vendor_memory for each row execute function touch_updated_at();
+
+-- ─── Storage Bucket ──────────────────────────────────────────────────────────
+insert into storage.buckets (id, name, public)
+  values ('uploads', 'uploads', true)
+  on conflict do nothing;
+
+create policy "public read uploads"
+  on storage.objects for select
+  using (bucket_id = 'uploads');
+
+create policy "auth insert uploads"
+  on storage.objects for insert
+  with check (bucket_id = 'uploads' and auth.uid() is not null);
+
+create policy "own delete uploads"
+  on storage.objects for delete
+  using (bucket_id = 'uploads' and auth.uid() is not null);
+

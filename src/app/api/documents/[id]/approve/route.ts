@@ -29,6 +29,7 @@ export async function POST(
       action: 'APPROVED',
       details: JSON.stringify({ comments }),
       actor: user.email,
+      userId: user.id,
     })
 
     // ── Vendor memory: store this approved extraction as a few-shot example ──
@@ -40,7 +41,7 @@ export async function POST(
         const gstin = extracted.vendorGstin?.trim() || undefined
         const name = extracted.vendorName?.trim() || undefined
         if (gstin || name) {
-          await storeVendorExample(gstin, name, doc.extractedData)
+          await storeVendorExample(user.id, gstin, name, doc.extractedData)
           console.log(`[VendorMemory] Cached approved extraction for vendor: ${name ?? gstin}`)
         }
       } catch {

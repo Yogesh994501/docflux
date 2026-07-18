@@ -97,12 +97,17 @@ export async function POST(_req: NextRequest) {
         vendorId: s.vendorId,
         processedAt: s.uploadedAt,
         uploadedAt: s.uploadedAt,
+        irn: (s.extracted as any).irn || null,
+        gstinValid: true,
+        totalsVerified: true,
+        missingFields: (s.extracted as any).missingMandatoryFields ? JSON.stringify((s.extracted as any).missingMandatoryFields) : null,
+        pipelinePasses: 3,
       })
 
-      await repo.createAuditLog({ documentId: created.id, action: 'UPLOADED', details: JSON.stringify({ source: 'seed' }) })
-      await repo.createAuditLog({ documentId: created.id, action: 'EXTRACTED', details: JSON.stringify({ type: s.documentType, confidence: s.ocrConfidence }) })
+      await repo.createAuditLog({ documentId: created.id, action: 'UPLOADED', details: JSON.stringify({ source: 'seed' }), userId: user.id })
+      await repo.createAuditLog({ documentId: created.id, action: 'EXTRACTED', details: JSON.stringify({ type: s.documentType, confidence: s.ocrConfidence }), userId: user.id })
       if (s.status === 'APPROVED') {
-        await repo.createAuditLog({ documentId: created.id, action: 'APPROVED', details: JSON.stringify({ comments: s.approvalComments }), actor: user.email })
+        await repo.createAuditLog({ documentId: created.id, action: 'APPROVED', details: JSON.stringify({ comments: s.approvalComments }), actor: user.email, userId: user.id })
       }
     }
 

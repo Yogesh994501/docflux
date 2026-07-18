@@ -638,7 +638,11 @@ function deriveSuggestedStatus(
 
 // ─── Main Gemini agentic pipeline ────────────────────────────────────────────
 
-async function processWithGemini(filePath: string, fileName: string): Promise<OcrResult> {
+async function processWithGemini(
+  filePath: string,
+  fileName: string,
+  vendorExample: string | null = null,
+): Promise<OcrResult> {
   const mimeType = getMimeType(fileName)
   const { data, mimeType: mt } = await fileToBase64(filePath, mimeType)
 
@@ -647,12 +651,6 @@ async function processWithGemini(filePath: string, fileName: string): Promise<Oc
   const classification = await classifyWithGemini(data, mt)
   const docType = classification.type
   console.log(`[AI Pipeline] Classified as: ${docType} (${classification.confidence})`)
-
-  // ── Vendor memory lookup ─────────────────────────────────────────────────
-  // We can't look up by vendor yet (we don't know it), so we do a provisional
-  // lookup by docType. Real lookup happens after extraction in the upload route.
-  // Here we pass null — the upload route handles cache injection on reprocess.
-  const vendorExample: string | null = null
 
   // ── Pass 2: Schema-constrained extraction ─────────────────────────────────
   console.log(`[AI Pipeline] Pass 2: Extracting with ${docType} schema...`)
@@ -736,18 +734,21 @@ export async function processDocument(
   filePath: string,
   fileName: string,
   vendorHint?: { gstin?: string; name?: string },
+  userId?: string,
 ): Promise<OcrResult> {
   const provider = getProvider()
   if (provider === 'gemini') {
     try {
-      // If we have a vendor hint (e.g. user selected from a dropdown), inject few-shot
+      let vendorExample: string | null = null
+      // If we have a vendor hint (e.g. user selected from a dropdown or reprocessing), inject few-shot
       if (vendorHint) {
-        const example = await getVendorExample(vendorHint.gstin, vendorHint.name)
+        const example = await getVendorExample(userId ?? null, vendorHint.gstin, vendorHint.name)
         if (example) {
           console.log(`[AI Pipeline] Found vendor memory for ${example.vendorName} (${example.hitCount} previous hits)`)
+          vendorExample = example.extractedJson
         }
       }
-      return await processWithGemini(filePath, fileName)
+      return await processWithGemini(filePath, fileName, vendorExample)
     } catch (e) {
       console.error('[Gemini pipeline failed, falling back to Z.ai]', e)
       return await processWithZai(filePath, fileName)
@@ -761,8 +762,6 @@ export async function processDocument(
 export async function copilotChat(
   messages: { role: 'user' | 'assistant'; content: string }[],
 ): Promise<string> {
-  const zai = await getZai()
-
   const systemPrompt = `You are DocFlux Copilot, an AI assistant for an intelligent document processing platform built for Indian GST compliance.
 
 DocFlux uses an agentic 3-pass pipeline:
@@ -782,14 +781,26 @@ When asked about "Layout learned", explain the vendor memory few-shot caching sy
 
   if (getProvider() === 'gemini') {
     const ai = getGemini()
-    const prompt = systemPrompt + '\n\n' + messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n')
+    // Build a conversation: inject system prompt as an assistant preamble, then user messages
+    const contents = [
+      // System context as first user turn (Gemini doesn't have a system role in basic generateContent)
+      { role: 'user' as const, parts: [{ text: systemPrompt }] },
+      { role: 'model' as const, parts: [{ text: 'Understood. I am DocFlux Copilot, ready to help.' }] },
+      // Actual user conversation
+      ...messages.map((m) => ({
+        role: (m.role === 'user' ? 'user' : 'model') as 'user' | 'model',
+        parts: [{ text: m.content }],
+      })),
+    ]
     const response = await ai.models.generateContent({
       model: getGeminiModel(),
-      contents: prompt
+      contents,
     })
     return response.text || 'No response generated.'
   }
 
+  // Z.ai fallback — only initialized when provider is 'zai'
+  const zai = await getZai()
   const completion = await zai.chat.completions.create({
     messages: [
       { role: 'assistant', content: systemPrompt },

@@ -114,12 +114,16 @@ export async function POST(req: NextRequest) {
     await repo.createAuditLog({
       documentId: doc.id,
       action: 'UPLOADED',
-      details: JSON.stringify({ fileName: file.name, size: file.size, source, userId: user.id }),
+      details: JSON.stringify({ fileName: file.name, size: file.size, source }),
+      userId: user.id,
     })
 
     try {
-      const result = await processDocument(tmpPath, file.name,
+      const result = await processDocument(
+        tmpPath,
+        file.name,
         docTypeHint !== 'auto' ? { name: docTypeHint } : undefined,
+        user.id,
       )
 
       await repo.updateDocument(doc.id, {
@@ -129,9 +133,13 @@ export async function POST(req: NextRequest) {
         extractedData: JSON.stringify(result.extracted),
         documentType: result.extracted.documentType,
         fraudRisk: result.extracted.fraudRisk,
-        // Smart routing: low confidence / missing fields → PENDING_REVIEW for human review
         status: result.suggestedStatus,
         processedAt: new Date().toISOString(),
+        irn: result.extracted.irn || null,
+        gstinValid: result.extracted.gstinValid ?? null,
+        totalsVerified: result.extracted.totalsVerified ?? null,
+        missingFields: result.extracted.missingMandatoryFields ? JSON.stringify(result.extracted.missingMandatoryFields) : null,
+        pipelinePasses: result.extracted.pipelinePasses ?? 1,
       })
 
       await repo.createAuditLog({
@@ -150,6 +158,7 @@ export async function POST(req: NextRequest) {
           pipelinePasses: result.extracted.pipelinePasses,
           provider: result.provider,
         }),
+        userId: user.id,
       })
 
       // Auto-link / auto-create vendor (scoped to this user)
