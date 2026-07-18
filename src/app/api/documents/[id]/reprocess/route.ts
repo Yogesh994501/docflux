@@ -16,10 +16,11 @@ export async function POST(
     if (!doc) return NextResponse.json(err('Document not found'), { status: 404 })
 
     await repo.updateDocument(id, { status: 'PROCESSING' })
-    await repo.createAuditLog({ documentId: id, action: 'REPROCESSED', actor: user.email })
+    await repo.createAuditLog({ documentId: id, action: 'REPROCESSED', actor: user.email, userId: user.id })
 
     const filePath = path.join(process.cwd(), 'public', doc.storagePath)
-    const result = await processDocument(filePath, doc.fileName)
+    const vendorHint = doc.vendor ? { gstin: doc.vendor.gstin || undefined, name: doc.vendor.name } : undefined
+    const result = await processDocument(filePath, doc.fileName, vendorHint, user.id)
 
     await repo.updateDocument(id, {
       ocrText: result.ocrText.slice(0, 200000),
@@ -29,6 +30,11 @@ export async function POST(
       fraudRisk: result.extracted.fraudRisk,
       status: 'EXTRACTED',
       processedAt: new Date().toISOString(),
+      irn: result.extracted.irn || null,
+      gstinValid: result.extracted.gstinValid ?? null,
+      totalsVerified: result.extracted.totalsVerified ?? null,
+      missingFields: result.extracted.missingMandatoryFields ? JSON.stringify(result.extracted.missingMandatoryFields) : null,
+      pipelinePasses: result.extracted.pipelinePasses ?? 1,
     })
 
     await repo.createAuditLog({
@@ -36,6 +42,7 @@ export async function POST(
       action: 'EXTRACTED',
       details: JSON.stringify({ type: result.extracted.documentType, confidence: result.confidence, reprocessed: true, provider: result.provider }),
       actor: user.email,
+      userId: user.id,
     })
 
     const refreshed = await repo.getDocument(id, user.id)

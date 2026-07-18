@@ -61,7 +61,7 @@ export function DocumentDetailModal() {
 
   return (
     <Dialog open={!!detailDocId} onOpenChange={(o) => !o && closeDetail()}>
-      <DialogContent className="max-w-6xl h-[92vh] p-0 gap-0 overflow-hidden bg-brand-cream border-brand-cream-border">
+      <DialogContent className="max-w-6xl h-[92vh] flex flex-col p-0 gap-0 overflow-hidden bg-brand-cream border-brand-cream-border">
         <DialogHeader className="px-6 py-4 border-b border-brand-cream-border bg-white">
           <DialogTitle className="flex items-center gap-3 flex-wrap text-base">
             <FileText className="h-4.5 w-4.5 text-primary" />
@@ -168,7 +168,7 @@ function DetailBody({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
   }
 
   return (
-    <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden bg-white">
+    <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden bg-white min-h-0">
       <div className="border-b border-brand-cream-border px-6 py-2 bg-brand-cream/30">
         <TabsList>
           <TabsTrigger value="overview" className="text-xs">
@@ -182,25 +182,24 @@ function DetailBody({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
           </TabsTrigger>
         </TabsList>
       </div>
-
-      <ScrollArea className="flex-1">
+      <div className="flex-1 flex flex-col min-h-0">
         {/* ── Overview tab ───────────────────────────────────── */}
-        <TabsContent value="overview" className="m-0 p-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Document image */}
-            <div>
-              <div className="mb-2 text-sm font-serif font-semibold text-brand-navy-900">
+        <TabsContent value="overview" className="m-0 p-6 flex-1 flex flex-col min-h-0">
+          <div className="grid gap-6 lg:grid-cols-2 h-full min-h-0">
+            {/* Document image column */}
+            <div className="flex flex-col h-full min-h-0">
+              <div className="mb-2 text-sm font-serif font-semibold text-brand-navy-900 shrink-0">
                 Document Preview
               </div>
-              <div className="overflow-hidden rounded-[14px] border border-brand-cream-border bg-brand-cream/50 shadow-editorial">
+              <div className="relative flex-1 overflow-hidden rounded-[14px] border border-brand-cream-border bg-brand-cream/50 shadow-editorial">
                 {doc.fileType.startsWith('image/') ? (
                   <img
                     src={doc.storagePath}
                     alt={doc.fileName}
-                    className="max-h-[60vh] w-full object-contain"
+                    className="absolute inset-0 h-full w-full object-contain p-2"
                   />
                 ) : (
-                  <div className="flex aspect-[3/4] flex-col items-center justify-center gap-3 text-muted-foreground">
+                  <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
                     <FileText className="h-16 w-16" />
                     <span className="text-sm">PDF document</span>
                     <a
@@ -216,7 +215,7 @@ function DetailBody({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
               </div>
 
               {ext?.fraudIndicators && ext.fraudIndicators.length > 0 && (
-                <div className="mt-4 rounded-[14px] border border-brand-amber/30 bg-brand-amber-tint p-3 shadow-sm">
+                <div className="mt-4 shrink-0 rounded-[14px] border border-brand-amber/30 bg-brand-amber-tint p-3 shadow-sm">
                   <div className="flex items-center gap-2 text-sm font-semibold text-amber-800">
                     <AlertTriangle className="h-4 w-4" />
                     Fraud Indicators
@@ -230,9 +229,9 @@ function DetailBody({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
               )}
             </div>
 
-            {/* Extracted fields */}
-            <div>
-              <div className="mb-2 flex items-center justify-between">
+            {/* Extracted fields column */}
+            <div className="flex flex-col h-full min-h-0">
+              <div className="mb-2 flex items-center justify-between shrink-0">
                 <span className="text-sm font-serif font-semibold text-brand-navy-900">
                   Extracted Fields
                 </span>
@@ -258,131 +257,133 @@ function DetailBody({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
                 </div>
               </div>
 
-              {editMode ? (
-                <div className="space-y-3 rounded-lg border border-border p-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs">Document Type</Label>
-                      <Select value={editedType} onValueChange={setEditedType}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {DOCUMENT_TYPES.map((t) => (
-                            <SelectItem key={t.value} value={t.value} className="text-xs">
-                              {t.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+              <div className="flex-1 overflow-y-auto custom-scroll pr-3 pb-6">
+                {editMode ? (
+                  <div className="space-y-3 rounded-lg border border-border p-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">Document Type</Label>
+                        <Select value={editedType} onValueChange={setEditedType}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {DOCUMENT_TYPES.map((t) => (
+                              <SelectItem key={t.value} value={t.value} className="text-xs">
+                                {t.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Fraud Risk</Label>
+                        <Select value={editedRisk} onValueChange={setEditedRisk}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {FRAUD_RISKS.map((r) => (
+                              <SelectItem key={r.value} value={r.value} className="text-xs">
+                                {r.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div>
-                      <Label className="text-xs">Fraud Risk</Label>
-                      <Select value={editedRisk} onValueChange={setEditedRisk}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {FRAUD_RISKS.map((r) => (
-                            <SelectItem key={r.value} value={r.value} className="text-xs">
-                              {r.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <Separator />
+                    <div className="grid grid-cols-2 gap-3">
+                      {Object.entries(editedFields)
+                        .filter(([k]) => !['lineItems', 'fraudIndicators', 'fraudRisk', 'documentType'].includes(k))
+                        .map(([k, v]) => (
+                          <div key={k}>
+                            <Label className="text-xs capitalize">{k.replace(/([A-Z])/g, ' $1').trim()}</Label>
+                            <Input
+                              className="h-8 text-xs"
+                              value={v}
+                              onChange={(e) =>
+                                setEditedFields((prev) => ({ ...prev, [k]: e.target.value }))
+                              }
+                            />
+                          </div>
+                        ))}
+                    </div>
+                    <Button size="sm" onClick={handleSaveEdits} disabled={update.isPending} className="w-full mt-2">
+                      <Save className="mr-1.5 h-3.5 w-3.5" /> Save changes
+                    </Button>
+                  </div>
+                ) : (
+                  <ExtractedFieldsView ext={ext} />
+                )}
+
+                {/* Approval bar */}
+                {doc.status !== 'APPROVED' && doc.status !== 'REJECTED' && (
+                  <div className="mt-6 rounded-[14px] border border-brand-cream-border bg-white shadow-editorial p-4">
+                    <Label className="text-xs font-semibold">Approval comments</Label>
+                    <Textarea
+                      className="mt-1.5 min-h-[60px] text-sm"
+                      placeholder="Optional comment (e.g. verified against PO #123)"
+                      value={comments}
+                      onChange={(e) => setComments(e.target.value)}
+                    />
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button onClick={handleApprove} disabled={approve.isPending} size="sm" className="bg-brand-terracotta hover:bg-brand-terracotta/90 text-white rounded-[8px]">
+                        <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                        {approve.isPending ? 'Approving…' : 'Approve'}
+                      </Button>
+                      <Button onClick={handleReject} disabled={reject.isPending} size="sm" variant="outline" className="text-brand-navy-900 border-brand-cream-border hover:bg-brand-cream rounded-[8px]">
+                        <XCircle className="mr-1.5 h-4 w-4" />
+                        {reject.isPending ? 'Rejecting…' : 'Reject'}
+                      </Button>
+                      <Button
+                        onClick={handleDelete}
+                        disabled={del.isPending}
+                        size="sm"
+                        variant="ghost"
+                        className="ml-auto text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="mr-1.5 h-4 w-4" />
+                        Delete
+                      </Button>
                     </div>
                   </div>
-                  <Separator />
-                  <div className="grid max-h-[40vh] grid-cols-2 gap-3 overflow-y-auto custom-scroll pr-1">
-                    {Object.entries(editedFields)
-                      .filter(([k]) => !['lineItems', 'fraudIndicators', 'fraudRisk', 'documentType'].includes(k))
-                      .map(([k, v]) => (
-                        <div key={k}>
-                          <Label className="text-xs capitalize">{k.replace(/([A-Z])/g, ' $1').trim()}</Label>
-                          <Input
-                            className="h-8 text-xs"
-                            value={v}
-                            onChange={(e) =>
-                              setEditedFields((prev) => ({ ...prev, [k]: e.target.value }))
-                            }
-                          />
+                )}
+
+                {(doc.status === 'APPROVED' || doc.status === 'REJECTED') && (
+                  <div className="mt-6 rounded-[14px] border border-brand-cream-border bg-brand-cream/30 p-4 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          {doc.status === 'APPROVED' ? 'Approved' : 'Rejected'} by {doc.approvedBy ?? '—'}
                         </div>
-                      ))}
+                        {doc.approvalComments && (
+                          <p className="mt-1 text-sm">{doc.approvalComments}</p>
+                        )}
+                      </div>
+                      <Button
+                        onClick={handleDelete}
+                        disabled={del.isPending}
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="mr-1.5 h-4 w-4" />
+                        Delete
+                      </Button>
+                    </div>
                   </div>
-                  <Button size="sm" onClick={handleSaveEdits} disabled={update.isPending} className="w-full">
-                    <Save className="mr-1.5 h-3.5 w-3.5" /> Save changes
-                  </Button>
-                </div>
-              ) : (
-                <ExtractedFieldsView ext={ext} />
-              )}
+                )}
+              </div>
             </div>
           </div>
-
-          {/* Approval bar */}
-          {doc.status !== 'APPROVED' && doc.status !== 'REJECTED' && (
-            <div className="mt-6 rounded-[14px] border border-brand-cream-border bg-white shadow-editorial p-4">
-              <Label className="text-xs font-semibold">Approval comments</Label>
-              <Textarea
-                className="mt-1.5 min-h-[60px] text-sm"
-                placeholder="Optional comment (e.g. verified against PO #123)"
-                value={comments}
-                onChange={(e) => setComments(e.target.value)}
-              />
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button onClick={handleApprove} disabled={approve.isPending} size="sm" className="bg-brand-terracotta hover:bg-brand-terracotta/90 text-white rounded-[8px]">
-                  <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                  {approve.isPending ? 'Approving…' : 'Approve'}
-                </Button>
-                <Button onClick={handleReject} disabled={reject.isPending} size="sm" variant="outline" className="text-brand-navy-900 border-brand-cream-border hover:bg-brand-cream rounded-[8px]">
-                  <XCircle className="mr-1.5 h-4 w-4" />
-                  {reject.isPending ? 'Rejecting…' : 'Reject'}
-                </Button>
-                <Button
-                  onClick={handleDelete}
-                  disabled={del.isPending}
-                  size="sm"
-                  variant="ghost"
-                  className="ml-auto text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="mr-1.5 h-4 w-4" />
-                  Delete
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {(doc.status === 'APPROVED' || doc.status === 'REJECTED') && (
-            <div className="mt-6 rounded-[14px] border border-brand-cream-border bg-brand-cream/30 p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    {doc.status === 'APPROVED' ? 'Approved' : 'Rejected'} by {doc.approvedBy ?? '—'}
-                  </div>
-                  {doc.approvalComments && (
-                    <p className="mt-1 text-sm">{doc.approvalComments}</p>
-                  )}
-                </div>
-                <Button
-                  onClick={handleDelete}
-                  disabled={del.isPending}
-                  size="sm"
-                  variant="ghost"
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="mr-1.5 h-4 w-4" />
-                  Delete
-                </Button>
-              </div>
-            </div>
-          )}
         </TabsContent>
 
         {/* ── OCR tab ───────────────────────────────────────── */}
-        <TabsContent value="ocr" className="m-0 p-6">
+        <TabsContent value="ocr" className="m-0 p-6 flex-1 overflow-y-auto custom-scroll min-h-0">
           <pre className="whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-4 font-mono text-xs leading-relaxed">
             {doc.ocrText ?? 'No OCR text available.'}
           </pre>
         </TabsContent>
 
         {/* ── Audit tab ─────────────────────────────────────── */}
-        <TabsContent value="audit" className="m-0 p-6">
+        <TabsContent value="audit" className="m-0 p-6 flex-1 overflow-y-auto custom-scroll min-h-0">
           <div className="space-y-3">
             {(doc.auditLogs ?? []).map((log) => (
               <div
@@ -416,7 +417,7 @@ function DetailBody({ doc, onClose }: { doc: DocumentItem; onClose: () => void }
             )}
           </div>
         </TabsContent>
-      </ScrollArea>
+      </div>
     </Tabs>
   )
 }

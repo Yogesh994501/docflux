@@ -21,7 +21,7 @@ export interface SupabaseRepo {
   createDocument(data: any): Promise<DocumentRow>
   updateDocument(id: string, data: Record<string, unknown>): Promise<DocumentRow | null>
   deleteDocument(id: string): Promise<void>
-  createAuditLog(data: { documentId: string; action: string; details?: string | null; actor?: string | null }): Promise<void>
+  createAuditLog(data: { documentId: string; action: string; details?: string | null; actor?: string | null; userId?: string | null }): Promise<void>
   listVendors(search?: string, userId?: string): Promise<VendorRow[]>
   createVendor(data: any): Promise<VendorRow>
   findVendorByGstin(gstin: string, userId?: string): Promise<VendorRow | null>
@@ -31,6 +31,9 @@ export interface SupabaseRepo {
   clearAll(userId?: string): Promise<void>
   groupBy(field: 'documentType' | 'status' | 'fraudRisk', userId?: string): Promise<{ key: string | null; count: number }[]>
   getSpendTrendDocs(userId?: string): Promise<{ uploadedAt: string; extractedData: string | null }[]>
+  getVendorMemory(userId: string | null, cacheKey: string): Promise<any | null>
+  storeVendorMemory(userId: string | null, data: { cacheKey: string; vendorName: string; gstin?: string | null; extractedJson: string }): Promise<void>
+  hasVendorMemory(userId: string | null, cacheKey: string): Promise<boolean>
 }
 
 let client: SupabaseClient | null = null
@@ -73,10 +76,15 @@ function mapDoc(row: any, vendor?: any, auditLogs?: any[]): DocumentRow {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     auditLogs: auditLogs?.map(mapAudit),
+    irn: row.irn ?? null,
+    gstinValid: row.gstin_valid ?? null,
+    totalsVerified: row.totals_verified ?? null,
+    missingFields: row.missing_fields ?? null,
+    pipelinePasses: row.pipeline_passes ?? null,
   }
 }
 
-function mapVendor(row: any, documentCount?: number, totalSpend?: number): VendorRow {
+function mapVendor(row: any): VendorRow {
   return {
     id: row.id,
     name: row.name,
@@ -88,8 +96,10 @@ function mapVendor(row: any, documentCount?: number, totalSpend?: number): Vendo
     category: row.category ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    documentCount,
-    totalSpend,
+    documentCount: row.total_documents ?? 0,
+    totalSpend: row.total_spend ?? 0,
+    totalDocuments: row.total_documents ?? 0,
+    lastDocumentAt: row.last_document_at ?? null,
   }
 }
 
@@ -101,6 +111,7 @@ function mapAudit(row: any): AuditLogRow {
     details: row.details ?? null,
     actor: row.actor ?? null,
     timestamp: row.timestamp,
+    userId: row.user_id ?? null,
   }
 }
 
@@ -159,6 +170,11 @@ export function createSupabaseBackend(): SupabaseRepo {
         source: d.source,
         status: d.status,
         user_id: d.userId,
+        irn: d.irn ?? null,
+        gstin_valid: d.gstinValid ?? null,
+        totals_verified: d.totalsVerified ?? null,
+        missing_fields: d.missingFields ?? null,
+        pipeline_passes: d.pipelinePasses ?? null,
       }
       const { data, error } = await sb.from('documents').insert(insert).select('*, vendor:vendors(*)').single()
       if (error) throw new Error(`Supabase createDocument: ${error.message}`)
@@ -167,6 +183,8 @@ export function createSupabaseBackend(): SupabaseRepo {
 
     async updateDocument(id, data) {
       const sb = getClient()
+      const { data: oldDoc } = await sb.from('documents').select('vendor_id').eq('id', id).maybeSingle()
+      
       // Convert camelCase keys to snake_case for Supabase
       const snake: Record<string, unknown> = {}
       const map: Record<string, string> = {
@@ -180,21 +198,40 @@ export function createSupabaseBackend(): SupabaseRepo {
         approvedBy: 'approved_by',
         approvedAt: 'approved_at',
         processedAt: 'processed_at',
+        uploadedAt: 'uploaded_at',
+        thumbnailPath: 'thumbnail_path',
+        storagePath: 'storage_path',
         vendorId: 'vendor_id',
         status: 'status',
+        irn: 'irn',
+        gstinValid: 'gstin_valid',
+        totalsVerified: 'totals_verified',
+        missingFields: 'missing_fields',
+        pipelinePasses: 'pipeline_passes',
       }
       for (const [k, v] of Object.entries(data)) {
         if (map[k]) snake[map[k]] = v
       }
       const { data: row, error } = await sb.from('documents').update(snake).eq('id', id).select('*, vendor:vendors(*)').single()
       if (error) throw new Error(`Supabase updateDocument: ${error.message}`)
+      
+      if (row.vendor_id) {
+        await supabaseUpdateVendorCounters(row.vendor_id)
+      }
+      if (oldDoc && oldDoc.vendor_id && oldDoc.vendor_id !== row.vendor_id) {
+        await supabaseUpdateVendorCounters(oldDoc.vendor_id)
+      }
       return mapDoc(row, row.vendor)
     },
 
     async deleteDocument(id) {
       const sb = getClient()
+      const { data: doc } = await sb.from('documents').select('vendor_id').eq('id', id).maybeSingle()
       const { error } = await sb.from('documents').delete().eq('id', id)
       if (error) throw new Error(`Supabase deleteDocument: ${error.message}`)
+      if (doc && doc.vendor_id) {
+        await supabaseUpdateVendorCounters(doc.vendor_id)
+      }
     },
 
     async createAuditLog(a) {
@@ -204,13 +241,14 @@ export function createSupabaseBackend(): SupabaseRepo {
         action: a.action,
         details: a.details ?? null,
         actor: a.actor ?? 'system',
+        user_id: a.userId ?? null,
       })
       if (error) throw new Error(`Supabase createAuditLog: ${error.message}`)
     },
 
     async listVendors(search, userId) {
       const sb = getClient()
-      let query = sb.from('vendors').select('*, documents(id)')
+      let query = sb.from('vendors').select('*')
       if (userId) query = query.eq('user_id', userId)
       if (search) {
         query = query.or(`name.ilike.%${search}%,gstin.ilike.%${search}%,email.ilike.%${search}%`)
@@ -219,23 +257,7 @@ export function createSupabaseBackend(): SupabaseRepo {
       const { data, error } = await query
       if (error) throw new Error(`Supabase listVendors: ${error.message}`)
 
-      const enriched: VendorRow[] = []
-      for (const v of data ?? []) {
-        const docs = v.documents ?? []
-        let totalSpend = 0
-        const { data: docData } = await sb.from('documents').select('extracted_data').eq('vendor_id', v.id)
-        for (const d of docData ?? []) {
-          if (d.extracted_data) {
-            try {
-              const parsed = JSON.parse(d.extracted_data)
-              const amt = parseFloat(String(parsed.totalAmount ?? '0').replace(/[^0-9.]/g, ''))
-              if (!isNaN(amt)) totalSpend += amt
-            } catch { /* ignore */ }
-          }
-        }
-        enriched.push(mapVendor(v, docs.length, totalSpend))
-      }
-      return enriched
+      return (data ?? []).map((v: any) => mapVendor(v))
     },
 
     async createVendor(d) {
@@ -341,6 +363,97 @@ export function createSupabaseBackend(): SupabaseRepo {
         uploadedAt: d.uploaded_at,
         extractedData: d.extracted_data
       }))
+    },
+
+    async getVendorMemory(userId, cacheKey) {
+      const sb = getClient()
+      let query = sb.from('vendor_memory').select('*').eq('cache_key', cacheKey)
+      if (userId) query = query.eq('user_id', userId)
+      const { data, error } = await query.maybeSingle()
+      if (error) throw new Error(`Supabase getVendorMemory: ${error.message}`)
+      if (!data) return null
+      
+      // Increment hit count non-blocking
+      sb.from('vendor_memory').update({ hit_count: (data.hit_count ?? 0) + 1 }).eq('id', data.id).catch(() => {})
+      
+      return {
+        id: data.id,
+        cacheKey: data.cache_key,
+        vendorName: data.vendor_name,
+        gstin: data.gstin ?? null,
+        extractedJson: data.extracted_json,
+        hitCount: (data.hit_count ?? 0) + 1,
+        storedAt: data.stored_at,
+        updatedAt: data.updated_at,
+        userId: data.user_id ?? null,
+      }
+    },
+
+    async storeVendorMemory(userId, data) {
+      const sb = getClient()
+      let query = sb.from('vendor_memory').select('id').eq('cache_key', data.cacheKey)
+      if (userId) query = query.eq('user_id', userId)
+      const { data: existing } = await query.maybeSingle()
+      
+      const payload = {
+        cache_key: data.cacheKey,
+        vendor_name: data.vendorName,
+        gstin: data.gstin ?? null,
+        extracted_json: data.extractedJson,
+        user_id: userId,
+      }
+      
+      if (existing) {
+        const { error } = await sb.from('vendor_memory').update(payload).eq('id', existing.id)
+        if (error) throw new Error(`Supabase storeVendorMemory update: ${error.message}`)
+      } else {
+        const { error } = await sb.from('vendor_memory').insert(payload)
+        if (error) throw new Error(`Supabase storeVendorMemory insert: ${error.message}`)
+      }
+    },
+
+    async hasVendorMemory(userId, cacheKey) {
+      const sb = getClient()
+      let query = sb.from('vendor_memory').select('id', { count: 'exact', head: true }).eq('cache_key', cacheKey)
+      if (userId) query = query.eq('user_id', userId)
+      const { count, error } = await query
+      if (error) throw new Error(`Supabase hasVendorMemory: ${error.message}`)
+      return (count ?? 0) > 0
     }
   }
+}
+
+async function supabaseUpdateVendorCounters(vendorId: string): Promise<void> {
+  const sb = getClient()
+  const { data: docs } = await sb
+    .from('documents')
+    .select('extracted_data, uploaded_at')
+    .eq('vendor_id', vendorId)
+    
+  let totalSpend = 0
+  let lastDocumentAt: string | null = null
+  
+  for (const d of docs ?? []) {
+    if (d.uploaded_at) {
+      if (!lastDocumentAt || d.uploaded_at > lastDocumentAt) {
+        lastDocumentAt = d.uploaded_at
+      }
+    }
+    if (d.extracted_data) {
+      try {
+        const parsed = JSON.parse(d.extracted_data)
+        const amt = parseFloat(String(parsed.totalAmount ?? '0').replace(/[^0-9.]/g, ''))
+        if (!isNaN(amt)) totalSpend += amt
+      } catch {}
+    }
+  }
+  
+  await sb
+    .from('vendors')
+    .update({
+      total_documents: docs?.length ?? 0,
+      total_spend: totalSpend,
+      last_document_at: lastDocumentAt,
+    })
+    .eq('id', vendorId)
 }
