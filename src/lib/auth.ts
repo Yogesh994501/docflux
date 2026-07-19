@@ -48,7 +48,7 @@ export function getAuthProvider(): 'supabase' | 'local' {
 // var to "false" to re-enable authentication.
 
 export function isAuthDisabled(): boolean {
-  return process.env.AUTH_DISABLED === 'true'
+  return false
 }
 
 const TEST_USER = {
