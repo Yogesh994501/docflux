@@ -81,7 +81,12 @@ export async function POST(req: NextRequest) {
     let storageUrl = ''
     if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
       // Upload to Supabase Storage
-      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, { auth: { persistSession: false } })
+      const { cookies } = await import('next/headers')
+      const token = (await cookies()).get('af_session')?.value
+      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, { 
+        auth: { persistSession: false },
+        global: token ? { headers: { Authorization: "Bearer " + token } } : undefined
+      })
       const { error: uploadError } = await supabase.storage
         .from('uploads')
         .upload(savedName, buffer, { contentType: file.type, upsert: true })

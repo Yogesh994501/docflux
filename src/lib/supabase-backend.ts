@@ -7,6 +7,8 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
+import { AUTH_COOKIE } from './auth'
 import type {
   DocumentRow,
   VendorRow,
@@ -120,7 +122,7 @@ function mapAudit(row: any): AuditLogRow {
 export function createSupabaseBackend(): SupabaseRepo {
   return {
     async listDocuments(params) {
-      const sb = getClient()
+      const sb = await getClient()
       let query = sb.from('documents').select('*, vendor:vendors(*)', { count: 'exact' })
 
       if (params.userId) query = query.eq('user_id', params.userId)
@@ -142,7 +144,7 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async getDocument(id, userId) {
-      const sb = getClient()
+      const sb = await getClient()
       let query = sb
         .from('documents')
         .select('*, vendor:vendors(*), audit_logs(*)')
@@ -158,7 +160,7 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async createDocument(d) {
-      const sb = getClient()
+      const sb = await getClient()
       const insert = {
         id: d.id,
         file_name: d.fileName,
@@ -182,7 +184,7 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async updateDocument(id, data) {
-      const sb = getClient()
+      const sb = await getClient()
       const { data: oldDoc } = await sb.from('documents').select('vendor_id').eq('id', id).maybeSingle()
       
       // Convert camelCase keys to snake_case for Supabase
@@ -225,7 +227,7 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async deleteDocument(id) {
-      const sb = getClient()
+      const sb = await getClient()
       const { data: doc } = await sb.from('documents').select('vendor_id').eq('id', id).maybeSingle()
       const { error } = await sb.from('documents').delete().eq('id', id)
       if (error) throw new Error(`Supabase deleteDocument: ${error.message}`)
@@ -235,7 +237,7 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async createAuditLog(a) {
-      const sb = getClient()
+      const sb = await getClient()
       const { error } = await sb.from('audit_logs').insert({
         document_id: a.documentId,
         action: a.action,
@@ -247,7 +249,7 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async listVendors(search, userId) {
-      const sb = getClient()
+      const sb = await getClient()
       let query = sb.from('vendors').select('*')
       if (userId) query = query.eq('user_id', userId)
       if (search) {
@@ -261,7 +263,7 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async createVendor(d) {
-      const sb = getClient()
+      const sb = await getClient()
       const { data, error } = await sb.from('vendors').insert({
         name: d.name,
         gstin: d.gstin ?? null,
@@ -277,7 +279,7 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async findVendorByGstin(gstin, userId) {
-      const sb = getClient()
+      const sb = await getClient()
       let query = sb.from('vendors').select('*').eq('gstin', gstin)
       if (userId) query = query.eq('user_id', userId)
       const { data, error } = await query.maybeSingle()
@@ -286,7 +288,7 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async findVendorByName(name, userId) {
-      const sb = getClient()
+      const sb = await getClient()
       let query = sb.from('vendors').select('*').ilike('name', `%${name}%`)
       if (userId) query = query.eq('user_id', userId)
       const { data, error } = await query.maybeSingle()
@@ -295,7 +297,7 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async listCopilotMessages(limit = 50, userId) {
-      const sb = getClient()
+      const sb = await getClient()
       let query = sb.from('copilot_messages').select('*').order('created_at', { ascending: true }).limit(limit)
       if (userId) query = query.eq('user_id', userId)
       const { data, error } = await query
@@ -309,13 +311,13 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async createCopilotMessage(role, content, userId) {
-      const sb = getClient()
+      const sb = await getClient()
       const { error } = await sb.from('copilot_messages').insert({ role, content, user_id: userId ?? null })
       if (error) throw new Error(`Supabase createCopilotMessage: ${error.message}`)
     },
 
     async clearAll(userId) {
-      const sb = getClient()
+      const sb = await getClient()
       if (userId) {
         await sb.from('audit_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000')
         await sb.from('documents').delete().eq('user_id', userId)
@@ -332,7 +334,7 @@ export function createSupabaseBackend(): SupabaseRepo {
     async groupBy(field: 'documentType' | 'status' | 'fraudRisk', userId?: string) {
       const dbField = field === 'documentType' ? 'document_type' : field === 'fraudRisk' ? 'fraud_risk' : 'status'
       
-      let query = getClient().from('documents').select(dbField)
+      let query = (await getClient()).from('documents').select(dbField)
       if (userId) query = query.eq('user_id', userId)
         
       const { data, error } = await query
@@ -366,7 +368,7 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async getVendorMemory(userId, cacheKey) {
-      const sb = getClient()
+      const sb = await getClient()
       let query = sb.from('vendor_memory').select('*').eq('cache_key', cacheKey)
       if (userId) query = query.eq('user_id', userId)
       const { data, error } = await query.maybeSingle()
@@ -390,7 +392,7 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async storeVendorMemory(userId, data) {
-      const sb = getClient()
+      const sb = await getClient()
       let query = sb.from('vendor_memory').select('id').eq('cache_key', data.cacheKey)
       if (userId) query = query.eq('user_id', userId)
       const { data: existing } = await query.maybeSingle()
@@ -413,7 +415,7 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async hasVendorMemory(userId, cacheKey) {
-      const sb = getClient()
+      const sb = await getClient()
       let query = sb.from('vendor_memory').select('id', { count: 'exact', head: true }).eq('cache_key', cacheKey)
       if (userId) query = query.eq('user_id', userId)
       const { count, error } = await query
@@ -424,7 +426,7 @@ export function createSupabaseBackend(): SupabaseRepo {
 }
 
 async function supabaseUpdateVendorCounters(vendorId: string): Promise<void> {
-  const sb = getClient()
+  const sb = await getClient()
   const { data: docs } = await sb
     .from('documents')
     .select('extracted_data, uploaded_at')
