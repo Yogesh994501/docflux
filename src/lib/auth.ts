@@ -48,7 +48,7 @@ export function getAuthProvider(): 'supabase' | 'local' {
 // var to "false" to re-enable authentication.
 
 export function isAuthDisabled(): boolean {
-  return false
+  return process.env.AUTH_DISABLED === 'true'
 }
 
 const TEST_USER = {
@@ -173,7 +173,34 @@ async function supabaseSignup(email: string, password: string, name: string): Pr
     options: { data: { name } },
   })
   if (error) throw new Error(error.message)
-  if (!data.session) throw new Error('Check your email to confirm your account before signing in.')
+
+  // If no session, Supabase requires email confirmation.
+  // If a service role key is available, auto-confirm the user immediately.
+  if (!data.session) {
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (serviceKey && data.user?.id) {
+      const admin = createClient(process.env.SUPABASE_URL!, serviceKey, { auth: { persistSession: false } })
+      await admin.auth.admin.updateUserById(data.user.id, { email_confirm: true })
+      // Now sign in to get a real session
+      const { data: loginData, error: loginError } = await sb.auth.signInWithPassword({ email, password })
+      if (loginError) throw new Error(loginError.message)
+      return {
+        user: {
+          id: loginData.user!.id,
+          email: loginData.user!.email!,
+          name,
+          avatarUrl: null,
+          provider: 'supabase',
+        },
+        token: loginData.session!.access_token,
+      }
+    }
+    // No service role key — guide the user to check email
+    throw new Error(
+      'Account created! Please check your email inbox and click the confirmation link, then sign in.'
+    )
+  }
+
   return {
     user: {
       id: data.user!.id,
