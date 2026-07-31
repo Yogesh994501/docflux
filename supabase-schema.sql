@@ -113,34 +113,56 @@ create index if not exists idx_copilot_user    on copilot_messages(user_id);
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Row Level Security — users can only see/modify their own data
 -- ═══════════════════════════════════════════════════════════════════════════
+
+-- Enable RLS on all tables
 alter table profiles         enable row level security;
 alter table vendors          enable row level security;
 alter table documents        enable row level security;
 alter table audit_logs       enable row level security;
 alter table copilot_messages enable row level security;
 
--- Profiles: a user can see/update only their own profile
+-- Force RLS so even table owners (service_role) are subject to policies
+alter table profiles         force row level security;
+alter table vendors          force row level security;
+alter table documents        force row level security;
+alter table audit_logs       force row level security;
+alter table copilot_messages force row level security;
+
+-- ─── Profiles ────────────────────────────────────────────────────────────────
+-- Users can see/update only their own profile.
+-- INSERT is denied: profiles are created by the handle_new_user() trigger.
 create policy "own profile read"  on profiles for select using (auth.uid() = id);
 create policy "own profile write" on profiles for update using (auth.uid() = id);
+create policy "deny direct profile insert" on profiles as restrictive
+  for insert with check (false);
 
--- Vendors: full CRUD on own vendors
+-- ─── Vendors ─────────────────────────────────────────────────────────────────
 create policy "own vendors all" on vendors for all
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
--- Documents: full CRUD on own documents
+-- ─── Documents ───────────────────────────────────────────────────────────────
 create policy "own documents all" on documents for all
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
--- Audit logs: read only on own documents' logs; inserts via service role
+-- ─── Audit Logs (immutable — no UPDATE/DELETE allowed) ───────────────────────
 create policy "own audit read" on audit_logs for select
-  using (exists (select 1 from documents d where d.id = audit_logs.document_id and d.user_id = auth.uid()));
--- Allow inserts when the document belongs to the user
+  using (
+    auth.uid() = user_id
+    or exists (select 1 from documents d where d.id = audit_logs.document_id and d.user_id = auth.uid())
+  );
 create policy "own audit insert" on audit_logs for insert
-  with check (exists (select 1 from documents d where d.id = audit_logs.document_id and d.user_id = auth.uid()));
+  with check (
+    (user_id is null or auth.uid() = user_id)
+    and exists (select 1 from documents d where d.id = audit_logs.document_id and d.user_id = auth.uid())
+  );
+create policy "deny audit update" on audit_logs as restrictive for update using (false);
+create policy "deny audit delete" on audit_logs as restrictive for delete using (false);
 
--- Copilot messages: full CRUD on own messages
-create policy "own copilot all" on copilot_messages for all
-  using (auth.uid() = user_id) with check (auth.uid() = user_id or user_id is null);
+-- ─── Copilot Messages (strict user scoping, no NULL user_id allowed) ─────────
+create policy "own copilot select" on copilot_messages for select using (auth.uid() = user_id);
+create policy "own copilot insert" on copilot_messages for insert with check (auth.uid() = user_id);
+create policy "own copilot update" on copilot_messages for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own copilot delete" on copilot_messages for delete using (auth.uid() = user_id);
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- updated_at triggers
@@ -198,6 +220,7 @@ create unique index if not exists idx_vendor_memory_user_key on vendor_memory(us
 create index if not exists idx_vendor_memory_user on vendor_memory(user_id);
 
 alter table vendor_memory enable row level security;
+alter table vendor_memory force row level security;
 
 create policy "own vendor_memory all" on vendor_memory for all
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
@@ -207,18 +230,19 @@ create trigger trg_vendor_memory_touch before update on vendor_memory for each r
 
 -- ─── Storage Bucket ──────────────────────────────────────────────────────────
 insert into storage.buckets (id, name, public)
-  values ('uploads', 'uploads', true)
+  values ('uploads', 'uploads', false)
   on conflict do nothing;
 
-create policy "public read uploads"
+-- Owner-scoped storage policies (no public read)
+create policy "own read uploads"
   on storage.objects for select
-  using (bucket_id = 'uploads');
+  using (bucket_id = 'uploads' and owner = auth.uid());
 
-create policy "auth insert uploads"
+create policy "own insert uploads"
   on storage.objects for insert
   with check (bucket_id = 'uploads' and auth.uid() is not null);
 
 create policy "own delete uploads"
   on storage.objects for delete
-  using (bucket_id = 'uploads' and auth.uid() is not null);
+  using (bucket_id = 'uploads' and owner = auth.uid());
 
