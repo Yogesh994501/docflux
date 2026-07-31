@@ -52,7 +52,7 @@ export function isAuthDisabled(): boolean {
 }
 
 const TEST_USER = {
-  id: 'test-user-00000000-0000-0000-0000-000000000001',
+  id: '00000000-0000-0000-0000-000000000001',
   email: 'demo@autofindocs.com',
   name: 'Demo User',
   avatarUrl: null as string | null,
