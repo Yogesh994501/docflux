@@ -164,7 +164,7 @@ function getGemini(): GoogleGenAI {
 }
 
 function getGeminiModel(): string {
-  return process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+  return process.env.GEMINI_MODEL || 'gemini-3.5-flash'
 }
 
 // ─── Image helpers ────────────────────────────────────────────────────────────

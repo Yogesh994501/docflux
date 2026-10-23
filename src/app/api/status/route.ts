@@ -11,6 +11,6 @@ export async function GET() {
     ocr: getActiveProvider(),
     auth: getAuthProvider(),
     authDisabled: isAuthDisabled(),
-    geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    geminiModel: process.env.GEMINI_MODEL || 'gemini-3.5-flash',
   }))
 }
