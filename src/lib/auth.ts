@@ -33,6 +33,9 @@ export interface AuthSession {
 }
 
 export const AUTH_COOKIE = 'af_session'
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  console.warn('[SECURITY WARNING] JWT_SECRET is not set in production environment variables. Set a strong secret to prevent session tampering.')
+}
 const JWT_SECRET = process.env.JWT_SECRET || 'autofindocs-dev-secret-change-in-prod'
 const secretKey = new TextEncoder().encode(JWT_SECRET)
 
