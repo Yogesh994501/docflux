@@ -62,11 +62,11 @@ const PIE_COLORS = [
 ]
 
 export function DashboardSection() {
-  const { data: analytics, isLoading } = useAnalyticsQuery()
+  const { data: analytics, isLoading, error, refetch } = useAnalyticsQuery()
   const { setSection, openDetail } = useAppStore()
   const { data: recentDocs } = useDocumentsQuery({ page: 1, pageSize: 6 })
 
-  if (isLoading || !analytics) {
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -78,6 +78,21 @@ export function DashboardSection() {
           <Skeleton className="h-80 rounded-2xl lg:col-span-2" />
           <Skeleton className="h-80 rounded-2xl" />
         </div>
+      </div>
+    )
+  }
+
+  if (error || !analytics) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center bg-white rounded-2xl border border-brand-cream-border my-8 shadow-sm">
+        <AlertTriangle className="h-10 w-10 text-amber-500 mb-3" />
+        <h3 className="text-base font-semibold text-brand-navy-900 mb-1">Failed to load dashboard data</h3>
+        <p className="text-xs text-muted-foreground mb-4 max-w-sm">
+          {(error as Error)?.message || 'An unexpected error occurred while fetching analytics.'}
+        </p>
+        <Button onClick={() => refetch()} variant="outline" size="sm" className="rounded-lg">
+          Retry
+        </Button>
       </div>
     )
   }

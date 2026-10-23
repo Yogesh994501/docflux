@@ -359,7 +359,8 @@ export function createSupabaseBackend(): SupabaseRepo {
     },
 
     async getSpendTrendDocs(userId?: string) {
-      let query = getClient()
+      const sb = await getClient()
+      let query = sb
         .from('documents')
         .select('uploaded_at, extracted_data')
         .order('uploaded_at', { ascending: false })
