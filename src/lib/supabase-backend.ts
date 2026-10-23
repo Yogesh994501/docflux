@@ -38,16 +38,26 @@ export interface SupabaseRepo {
   hasVendorMemory(userId: string | null, cacheKey: string): Promise<boolean>
 }
 
-let client: SupabaseClient | null = null
-function getClient(): SupabaseClient {
-  if (!client) {
-    client = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_ANON_KEY!,
-      { auth: { persistSession: false } },
-    )
+async function getClient(): Promise<SupabaseClient> {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (serviceKey) {
+    return createClient(process.env.SUPABASE_URL!, serviceKey, {
+      auth: { persistSession: false },
+    })
   }
-  return client
+
+  let token: string | undefined
+  try {
+    const store = await cookies()
+    token = store.get(AUTH_COOKIE)?.value
+  } catch {
+    // cookies() might not be available in non-request contexts
+  }
+
+  return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
+    auth: { persistSession: false },
+    global: token ? { headers: { Authorization: `Bearer ${token}` } } : undefined,
+  })
 }
 
 // ─── Mappers (snake_case ↔ camelCase) ─────────────────────────────────────────
@@ -275,7 +285,7 @@ export function createSupabaseBackend(): SupabaseRepo {
         user_id: d.userId,
       }).select().single()
       if (error) throw new Error(`Supabase createVendor: ${error.message}`)
-      return mapVendor(data, 0, 0)
+      return mapVendor(data)
     },
 
     async findVendorByGstin(gstin, userId) {
@@ -319,12 +329,12 @@ export function createSupabaseBackend(): SupabaseRepo {
     async clearAll(userId) {
       const sb = await getClient()
       if (userId) {
-        await sb.from('audit_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        try { await sb.from('audit_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000') } catch {}
         await sb.from('documents').delete().eq('user_id', userId)
         await sb.from('vendors').delete().eq('user_id', userId)
         await sb.from('copilot_messages').delete().eq('user_id', userId)
       } else {
-        await sb.from('audit_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        try { await sb.from('audit_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000') } catch {}
         await sb.from('documents').delete().neq('id', '00000000-0000-0000-0000-000000000000')
         await sb.from('vendors').delete().neq('id', '00000000-0000-0000-0000-000000000000')
         await sb.from('copilot_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000')
@@ -376,7 +386,7 @@ export function createSupabaseBackend(): SupabaseRepo {
       if (!data) return null
       
       // Increment hit count non-blocking
-      sb.from('vendor_memory').update({ hit_count: (data.hit_count ?? 0) + 1 }).eq('id', data.id).catch(() => {})
+      try { await sb.from('vendor_memory').update({ hit_count: (data.hit_count ?? 0) + 1 }).eq('id', data.id) } catch {}
       
       return {
         id: data.id,
@@ -421,7 +431,7 @@ export function createSupabaseBackend(): SupabaseRepo {
       const { count, error } = await query
       if (error) throw new Error(`Supabase hasVendorMemory: ${error.message}`)
       return (count ?? 0) > 0
-    }
+    },
   }
 }
 

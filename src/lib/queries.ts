@@ -66,6 +66,7 @@ export interface Vendor {
   category: string | null
   createdAt: string
   _count?: { documents: number }
+  documentCount?: number
   totalSpend?: number
 }
 

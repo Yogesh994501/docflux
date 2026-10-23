@@ -79,26 +79,34 @@ export async function POST(req: NextRequest) {
 
     // 2. Determine persistent storage path
     let storageUrl = ''
+    let uploadedToCloud = false
     if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
-      // Upload to Supabase Storage
-      const { cookies } = await import('next/headers')
-      const token = (await cookies()).get('af_session')?.value
-      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, { 
-        auth: { persistSession: false },
-        global: token ? { headers: { Authorization: "Bearer " + token } } : undefined
-      })
-      const { error: uploadError } = await supabase.storage
-        .from('uploads')
-        .upload(savedName, buffer, { contentType: file.type, upsert: true })
-      
-      if (uploadError) {
-        console.error('[Supabase Storage Error]', uploadError)
-        return NextResponse.json(err('Failed to upload file to cloud storage'), { status: 500 })
+      try {
+        const { cookies } = await import('next/headers')
+        const token = (await cookies()).get('af_session')?.value
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+        const supabase = createClient(process.env.SUPABASE_URL, serviceKey || process.env.SUPABASE_ANON_KEY, { 
+          auth: { persistSession: false },
+          global: (!serviceKey && token) ? { headers: { Authorization: "Bearer " + token } } : undefined
+        })
+        const { error: uploadError } = await supabase.storage
+          .from('uploads')
+          .upload(savedName, buffer, { contentType: file.type, upsert: true })
+        
+        if (uploadError) {
+          console.warn('[Supabase Storage Warning - Falling back to local storage]:', uploadError.message)
+        } else {
+          const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(savedName)
+          storageUrl = publicUrlData.publicUrl
+          uploadedToCloud = true
+        }
+      } catch (storageErr) {
+        console.warn('[Supabase Storage Exception - Falling back to local storage]:', storageErr)
       }
-      const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(savedName)
-      storageUrl = publicUrlData.publicUrl
-    } else {
-      // Local development fallback: copy from /tmp to public/uploads
+    }
+
+    if (!uploadedToCloud) {
+      // Local development or fallback: copy from /tmp to public/uploads
       const localUploadDir = path.join(process.cwd(), 'public', 'uploads')
       await mkdir(localUploadDir, { recursive: true })
       await copyFile(tmpPath, path.join(localUploadDir, savedName))
@@ -176,16 +184,20 @@ export async function POST(req: NextRequest) {
         if (vendor) {
           await repo.updateDocument(doc.id, { vendorId: vendor.id })
         } else if (vname && ['GST_INVOICE', 'RECEIPT', 'E_BILL', 'PURCHASE_ORDER'].includes(result.extracted.documentType)) {
-          const newVendor = await repo.createVendor({
-            name: vname,
-            gstin: gstin || null,
-            address: result.extracted.vendorAddress || null,
-            phone: result.extracted.vendorPhone || null,
-            email: result.extracted.vendorEmail || null,
-            category: 'supplier',
-            userId: user.id,
-          })
-          await repo.updateDocument(doc.id, { vendorId: newVendor.id })
+          try {
+            const newVendor = await repo.createVendor({
+              name: vname,
+              gstin: gstin || null,
+              address: result.extracted.vendorAddress || null,
+              phone: result.extracted.vendorPhone || null,
+              email: result.extracted.vendorEmail || null,
+              category: 'supplier',
+              userId: user.id,
+            })
+            await repo.updateDocument(doc.id, { vendorId: newVendor.id })
+          } catch (vendorErr) {
+            console.warn('[Auto-create vendor warning]:', (vendorErr as Error).message)
+          }
         }
       }
     } catch (ocrError) {

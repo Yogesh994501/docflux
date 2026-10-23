@@ -518,7 +518,7 @@ export const repo = {
       : prismaDeleteDocument(id)
   },
 
-  async createAuditLog(data: { documentId: string; action: string; details?: string | null; actor?: string | null }) {
+  async createAuditLog(data: Parameters<typeof prismaCreateAuditLog>[0]) {
     return isSupabaseEnabled()
       ? getSupabase().createAuditLog(data)
       : prismaCreateAuditLog(data)
