@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
       }
     } catch (ocrError) {
       console.error('[OCR failed]', ocrError)
-      await repo.updateDocument(doc.id, { status: 'FAILED' })
+      await repo.updateDocument(doc.id, { status: 'FAILED', approvalComments: `Extraction error: ${(ocrError as Error).message}` })
       await repo.createAuditLog({
         documentId: doc.id,
         action: 'OCR_FAILED',

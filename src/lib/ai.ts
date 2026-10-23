@@ -142,9 +142,11 @@ export interface OcrResult {
 type OcrProvider = 'gemini' | 'zai'
 
 function getProvider(): OcrProvider {
-  const configured = (process.env.OCR_PROVIDER ?? 'zai').toLowerCase() as OcrProvider
-  if (configured === 'gemini' && process.env.GEMINI_API_KEY) return 'gemini'
-  return 'zai'
+  if (process.env.GEMINI_API_KEY) return 'gemini'
+  const configured = (process.env.OCR_PROVIDER ?? '').toLowerCase()
+  if (configured === 'gemini') return 'gemini'
+  if (configured === 'zai') return 'zai'
+  return 'gemini'
 }
 
 export function getActiveProvider(): OcrProvider {
@@ -164,7 +166,11 @@ function getGemini(): GoogleGenAI {
 }
 
 function getGeminiModel(): string {
-  return process.env.GEMINI_MODEL || 'gemini-3.5-flash'
+  const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash'
+  if (model.includes('2.5') || model.includes('2.0') || model.includes('1.5') || model.includes('3.8')) {
+    return 'gemini-3.5-flash'
+  }
+  return model
 }
 
 // ─── Image helpers ────────────────────────────────────────────────────────────
@@ -236,32 +242,52 @@ async function classifyWithGemini(imageBase64: string, mimeType: string): Promis
   confidence: ExtractionConfidence
 }> {
   const ai = getGemini()
-  const response = await ai.models.generateContent({
-    model: getGeminiModel(),
-    contents: [{
-      role: 'user',
-      parts: [
-        { text: CLASSIFICATION_PROMPT },
-        { inlineData: { data: imageBase64, mimeType } },
-      ],
-    }],
-    config: {
-      temperature: 0.05,
-      maxOutputTokens: 256,
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: 'OBJECT',
-        properties: {
-          type: { type: 'STRING' },
-          confidence: { type: 'STRING', enum: ['high', 'medium', 'low'] },
-          reasoning: { type: 'STRING' },
-        },
-        required: ['type', 'confidence'],
-      } as never,
-    },
-  })
-
-  const raw = response.text ?? ''
+  let raw = ''
+  try {
+    const response = await ai.models.generateContent({
+      model: getGeminiModel(),
+      contents: [{
+        role: 'user',
+        parts: [
+          { text: CLASSIFICATION_PROMPT },
+          { inlineData: { data: imageBase64, mimeType } },
+        ],
+      }],
+      config: {
+        temperature: 0.05,
+        maxOutputTokens: 256,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            type: { type: 'STRING' },
+            confidence: { type: 'STRING', enum: ['high', 'medium', 'low'] },
+            reasoning: { type: 'STRING' },
+          },
+          required: ['type', 'confidence'],
+        } as never,
+      },
+    })
+    raw = response.text ?? ''
+  } catch (schemaErr) {
+    console.warn('[classifyWithGemini schema fallback]:', (schemaErr as Error).message)
+    const response = await ai.models.generateContent({
+      model: getGeminiModel(),
+      contents: [{
+        role: 'user',
+        parts: [
+          { text: CLASSIFICATION_PROMPT },
+          { inlineData: { data: imageBase64, mimeType } },
+        ],
+      }],
+      config: {
+        temperature: 0.05,
+        maxOutputTokens: 256,
+        responseMimeType: 'application/json',
+      },
+    })
+    raw = response.text ?? ''
+  }
   try {
     const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim())
     return {
@@ -421,25 +447,45 @@ async function extractWithGemini(
   const ai = getGemini()
   const schema = buildExtractionSchema(docType)
   const prompt = buildExtractionPrompt(docType, vendorExample)
+  let raw = ''
 
-  const response = await ai.models.generateContent({
-    model: getGeminiModel(),
-    contents: [{
-      role: 'user',
-      parts: [
-        { text: prompt },
-        { inlineData: { data: imageBase64, mimeType } },
-      ],
-    }],
-    config: {
-      temperature: 0.1,
-      maxOutputTokens: 4096,
-      responseMimeType: 'application/json',
-      responseSchema: schema as never,
-    },
-  })
-
-  const raw = response.text ?? ''
+  try {
+    const response = await ai.models.generateContent({
+      model: getGeminiModel(),
+      contents: [{
+        role: 'user',
+        parts: [
+          { text: prompt },
+          { inlineData: { data: imageBase64, mimeType } },
+        ],
+      }],
+      config: {
+        temperature: 0.1,
+        maxOutputTokens: 4096,
+        responseMimeType: 'application/json',
+        responseSchema: schema as never,
+      },
+    })
+    raw = response.text ?? ''
+  } catch (schemaErr) {
+    console.warn('[extractWithGemini schema fallback]:', (schemaErr as Error).message)
+    const response = await ai.models.generateContent({
+      model: getGeminiModel(),
+      contents: [{
+        role: 'user',
+        parts: [
+          { text: prompt + '\n\nIMPORTANT: Return ONLY a valid JSON object matching the required fields.' },
+          { inlineData: { data: imageBase64, mimeType } },
+        ],
+      }],
+      config: {
+        temperature: 0.1,
+        maxOutputTokens: 4096,
+        responseMimeType: 'application/json',
+      },
+    })
+    raw = response.text ?? ''
+  }
   try {
     const cleaned = raw
       .replace(/^```(?:json)?\s*/i, '')
@@ -738,21 +784,17 @@ export async function processDocument(
 ): Promise<OcrResult> {
   const provider = getProvider()
   if (provider === 'gemini') {
-    try {
-      let vendorExample: string | null = null
-      // If we have a vendor hint (e.g. user selected from a dropdown or reprocessing), inject few-shot
-      if (vendorHint) {
+    let vendorExample: string | null = null
+    if (vendorHint) {
+      try {
         const example = await getVendorExample(userId ?? null, vendorHint.gstin, vendorHint.name)
         if (example) {
           console.log(`[AI Pipeline] Found vendor memory for ${example.vendorName} (${example.hitCount} previous hits)`)
           vendorExample = example.extractedJson
         }
-      }
-      return await processWithGemini(filePath, fileName, vendorExample)
-    } catch (e) {
-      console.error('[Gemini pipeline failed, falling back to Z.ai]', e)
-      return await processWithZai(filePath, fileName)
+      } catch {}
     }
+    return await processWithGemini(filePath, fileName, vendorExample)
   }
   return await processWithZai(filePath, fileName)
 }
